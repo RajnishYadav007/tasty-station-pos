@@ -1,0 +1,96 @@
+.header {
+  background: white;
+  padding: 20px 35px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #E5E7EB;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  background: #F9FAFB;
+  padding: 12px 20px;
+  border-radius: 12px;
+  width: 450px;
+  gap: 12px;
+  border: 1px solid #E5E7EB;
+}
+
+.search-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  flex: 1;
+  font-size: 15px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 25px;
+}
+
+.notification-btn {
+  position: relative;
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.notification-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #EF4444;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.user-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #14B8A6;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.user-info h4 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.user-info p {
+  font-size: 13px;
+  color: #6B7280;
+  margin: 0;
+}

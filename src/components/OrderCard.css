@@ -1,0 +1,104 @@
+/* src/components/OrderCard/OrderCard.css */
+
+.order-card {
+  padding: 20px;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.order-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  border-color: #14B8A6;
+}
+
+.order-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.order-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.order-id {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.table-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  width: fit-content;
+}
+
+.chevron-icon {
+  color: #9CA3AF;
+  transition: transform 0.3s ease;
+}
+
+.order-card:hover .chevron-icon {
+  transform: translateX(4px);
+  color: #14B8A6;
+}
+
+.order-card-body {
+  margin-bottom: 14px;
+}
+
+.item-info {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.item-label {
+  font-size: 14px;
+  color: #6B7280;
+  font-weight: 500;
+}
+
+.item-count {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.order-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.time-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #6B7280;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.order-status-badge {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+  text-transform: capitalize;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}

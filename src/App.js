@@ -1,24 +1,30 @@
-import logo from './logo.svg';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import Sidebar from './components/Sidebar';
+import Header from './components/Header';
+import Dashboard from './pages/Dashboard';
+import OrderLine from './pages/OrderLine';
+import ManageTable from './pages/ManageTable';
+import ManageDishes from './pages/ManageDishes';
 import './App.css';
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <Router>
+      <div className="app-container">
+        <Sidebar />
+        <div className="main-content">
+          <Header />
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/order-line" element={<OrderLine />} />
+            <Route path="/manage-table" element={<ManageTable />} />
+            <Route path="/manage-dishes" element={<ManageDishes />} />
+          </Routes>
+        </div>
+      </div>
+    </Router>
   );
 }
 
