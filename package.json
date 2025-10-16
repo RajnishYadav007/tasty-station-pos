@@ -1,5 +1,4 @@
 {
-<<<<<<< HEAD
   "name": "tasty-station-pos",
   "version": "0.1.0",
   "private": true,
@@ -7,26 +6,15 @@
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@mui/material": "^7.3.4",
-=======
-  "name": "hm",
-  "version": "0.1.0",
-  "private": true,
-  "dependencies": {
->>>>>>> 8f6508cadc04efe2a2b170d954900a05af84d693
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
-<<<<<<< HEAD
     "axios": "^1.12.2",
     "lucide-react": "^0.545.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "react-router-dom": "^7.9.4",
-=======
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
->>>>>>> 8f6508cadc04efe2a2b170d954900a05af84d693
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2",
     "react-scripts": "5.0.1",
     "web-vitals": "^2.1.4"
   },
