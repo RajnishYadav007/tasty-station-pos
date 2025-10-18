@@ -3,13 +3,15 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { OrderProvider } from './context/OrderContext';
+import { MenuProvider } from './context/MenuContext';  
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import OrderLine from './pages/OrderLine';
 import ManageTable from './pages/ManageTable';
-import ManageDishes from './pages/ManageDishes';
+import Menu from './pages/Menu';
 import Customers from './pages/Customers';
 import './App.css';
 
@@ -17,6 +19,12 @@ import './App.css';
 const ProtectedRoute = ({ children, requiredPermissions }) => {
   const { isAuthenticated, loading, currentUser, hasPermission } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (window.Notification && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -37,12 +45,10 @@ const ProtectedRoute = ({ children, requiredPermissions }) => {
     return <Navigate to="/login" replace />;
   }
 
-  // Check if user has required permissions
   if (requiredPermissions && requiredPermissions.length > 0) {
     const hasAccess = requiredPermissions.some(permission => hasPermission(permission));
     
     if (!hasAccess) {
-      // Redirect to user's default route
       return <Navigate to={currentUser?.defaultRoute || '/login'} replace />;
     }
   }
@@ -72,116 +78,109 @@ const DefaultRoute = () => {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <Routes>
-          {/* Public Route - Login */}
-          <Route path="/login" element={<Login />} />
+      <OrderProvider>
+        <MenuProvider>  {/* ✅ Add this wrapper */}
+          <Router>
+            <Routes>
+              <Route path="/login" element={<Login />} />
 
-          {/* Default Route - Redirects based on role */}
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <DefaultRoute />
-              </ProtectedRoute>
-            }
-          />
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <DefaultRoute />
+                  </ProtectedRoute>
+                }
+              />
 
-          {/* Dashboard - Owner & Receptionist */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute requiredPermissions={['all', 'tables']}>
-                <MainLayout>
-                  <Dashboard />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute requiredPermissions={['all', 'tables']}>
+                    <MainLayout>
+                      <Dashboard />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
 
-          {/* Order Line - All except Chef */}
-          <Route
-            path="/order-line"
-            element={
-              <ProtectedRoute requiredPermissions={['all', 'orders', 'order']}>
-                <MainLayout>
-                  <OrderLine />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+              <Route
+                path="/orderline"
+                element={
+                  <ProtectedRoute requiredPermissions={['all', 'orderline', 'orders', 'order']}>
+                    <MainLayout>
+                      <OrderLine />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
 
-          {/* Manage Table - Owner, Waiter, Receptionist */}
-          <Route
-            path="/manage-table"
-            element={
-              <ProtectedRoute requiredPermissions={['all', 'tables']}>
-                <MainLayout>
-                  <ManageTable />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+              <Route
+                path="/manage-table"
+                element={
+                  <ProtectedRoute requiredPermissions={['all', 'tables']}>
+                    <MainLayout>
+                      <ManageTable />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
 
- 
+<Route
+  path="/menu"
+  element={
+    <ProtectedRoute requiredPermissions={['all', 'menu']}>
+      <MainLayout>
+        <Menu />
+      </MainLayout>
+    </ProtectedRoute>
+  }
+/>
 
-          {/* Manage Dishes - Owner & Chef */}
-          <Route
-            path="/manage-dishes"
-            element={
-              <ProtectedRoute requiredPermissions={['all', 'dishes']}>
-                <MainLayout>
-                  <ManageDishes />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+              <Route
+                path="/customers"
+                element={
+                  <ProtectedRoute requiredPermissions={['all', 'customers']}>
+                    <MainLayout>
+                      <Customers />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
 
-          {/* Customers - Owner & Receptionist */}
-          <Route
-            path="/customers"
-            element={
-              <ProtectedRoute requiredPermissions={['all', 'customers']}>
-                <MainLayout>
-                  <Customers />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <div className="coming-soon-page">
+                        <h1>⚙️ Settings</h1>
+                        <p>Coming soon...</p>
+                      </div>
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
 
-          {/* Settings & Help - All logged in users except customers */}
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <div className="coming-soon-page">
-                    <h1>⚙️ Settings</h1>
-                    <p>Coming soon...</p>
-                  </div>
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+              <Route
+                path="/help"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <div className="coming-soon-page">
+                        <h1>❓ Help Center</h1>
+                        <p>Coming soon...</p>
+                      </div>
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
 
-          <Route
-            path="/help"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <div className="coming-soon-page">
-                    <h1>❓ Help Center</h1>
-                    <p>Coming soon...</p>
-                  </div>
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* 404 Route */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Router>
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Router>
+        </MenuProvider>  {/* ✅ Close wrapper */}
+      </OrderProvider>
     </AuthProvider>
   );
 }

@@ -19,18 +19,18 @@ export const AuthProvider = ({ children }) => {
 
   // User roles database - ONLY 4 ROLES
   const userRoles = [
-{
-  id: 1,
-  name: 'John Doe',
-  role: 'Owner',
-  avatar: 'JD',
-  icon: '👨‍💼',
-  color: '#14B8A6',
-  email: 'john@tastystation.com',
-  password: 'owner123',
-  permissions: ['all'],
-  defaultRoute: '/dashboard' 
-},
+    {
+      id: 1,
+      name: 'John Doe',
+      role: 'Owner',
+      avatar: 'JD',
+      icon: '👨‍💼',
+      color: '#14B8A6',
+      email: 'john@tastystation.com',
+      password: 'owner123',
+      permissions: ['all'],
+      defaultRoute: '/dashboard' 
+    },
     {
       id: 2,
       name: 'John Smith',
@@ -40,7 +40,7 @@ export const AuthProvider = ({ children }) => {
       color: '#3B82F6',
       email: 'johnsmith@tastystation.com',
       password: 'waiter123',
-      permissions: ['tables', 'orders'],
+      permissions: ['tables'],
       defaultRoute: '/manage-table'
     },
     {
@@ -52,8 +52,8 @@ export const AuthProvider = ({ children }) => {
       color: '#F59E0B',
       email: 'maria@tastystation.com',
       password: 'chef123',
-      permissions: ['dishes'],
-      defaultRoute: '/manage-dishes'
+      permissions: ['orderline'],  // ✅ Fixed - changed from 'order' to 'orderline'
+      defaultRoute: '/orderline'
     },
     {
       id: 4,
@@ -64,8 +64,8 @@ export const AuthProvider = ({ children }) => {
       color: '#EC4899',
       email: 'customer@tastystation.com',
       password: 'customer123',
-      permissions: ['order'],
-      defaultRoute: '/order-line'
+      permissions: ['menu'],
+      defaultRoute: '/menu'
     }
   ];
 

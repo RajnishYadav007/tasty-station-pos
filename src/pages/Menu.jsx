@@ -1,10 +1,10 @@
-// src/pages/ManageDishes/ManageDishes.jsx
+// src/pages/Menu/Menu.jsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Search, Grid, List, Filter, X, Edit2, Trash2, Check } from 'lucide-react';
-import './ManageDishes.css';
+import './Menu.css';
 
-const ManageDishes = () => {
+const Menu = () => {
   const [viewMode, setViewMode] = useState('grid');
   const [selectedCategory, setSelectedCategory] = useState('All Dishes');
   const [searchQuery, setSearchQuery] = useState('');
@@ -30,76 +30,89 @@ const ManageDishes = () => {
     { name: 'Soups', count: 3, icon: '🍲' }
   ]);
 
-  // Complete dishes list with all categories
-  const [dishes, setDishes] = useState([
-    // Desserts
-    { id: 1, name: 'Cheese Syrniky Pancakes', price: 8.00, category: 'Desserts', image: '🥞' },
-    { id: 2, name: 'Apple Stuffed Pancake', price: 10.00, category: 'Desserts', image: '🥞' },
-    { id: 3, name: 'Terracotta Bowl', price: 12.00, category: 'Desserts', image: '🍮' },
-    { id: 4, name: 'Croissant Dessert', price: 15.00, category: 'Desserts', image: '🥐' },
-    { id: 5, name: 'Granola Banana & Berry', price: 10.00, category: 'Desserts', image: '🥗' },
-    { id: 6, name: 'Vanilla Cherry Cupcake', price: 8.00, category: 'Desserts', image: '🧁' },
-    { id: 7, name: 'Belgian Waffles', price: 20.00, category: 'Desserts', image: '🧇' },
-    { id: 8, name: 'Granola with Yoghurt', price: 15.00, category: 'Desserts', image: '🥣' },
-    { id: 9, name: 'Chocolate Pancake', price: 12.00, category: 'Desserts', image: '🥞' },
-    { id: 10, name: 'Muesli Bowl', price: 10.00, category: 'Desserts', image: '🥗' },
-    { id: 11, name: 'Waffles with ice-cream', price: 10.00, category: 'Desserts', image: '🧇' },
-    { id: 12, name: 'Fruit Salad', price: 9.00, category: 'Desserts', image: '🍓' },
-    { id: 13, name: 'Ice Cream Sundae', price: 11.00, category: 'Desserts', image: '🍨' },
-    { id: 14, name: 'Tiramisu', price: 14.00, category: 'Desserts', image: '🍰' },
-    
-    // Breakfast
-    { id: 15, name: 'Eggs Benedict', price: 12.00, category: 'Breakfast', image: '🍳' },
-    { id: 16, name: 'French Toast', price: 10.00, category: 'Breakfast', image: '🍞' },
-    { id: 17, name: 'Breakfast Burrito', price: 11.00, category: 'Breakfast', image: '🌯' },
-    { id: 18, name: 'Omelette Special', price: 9.00, category: 'Breakfast', image: '🍳' },
-    { id: 19, name: 'Avocado Toast', price: 8.00, category: 'Breakfast', image: '🥑' },
-    
-    // Beef Dishes
-    { id: 20, name: 'Beef Steak', price: 30.00, category: 'Beef Dishes', image: '🥩' },
-    { id: 21, name: 'Beef Burger', price: 15.00, category: 'Beef Dishes', image: '🍔' },
-    { id: 22, name: 'Beef Tacos', price: 12.00, category: 'Beef Dishes', image: '🌮' },
-    { id: 23, name: 'Beef Stroganoff', price: 18.00, category: 'Beef Dishes', image: '🍲' },
-    { id: 24, name: 'BBQ Beef Ribs', price: 25.00, category: 'Beef Dishes', image: '🍖' },
-    
-    // Biryani
-    { id: 25, name: 'Chicken Biryani', price: 14.00, category: 'Biryani', image: '🍛' },
-    { id: 26, name: 'Mutton Biryani', price: 16.00, category: 'Biryani', image: '🍛' },
-    { id: 27, name: 'Vegetable Biryani', price: 12.00, category: 'Biryani', image: '🍛' },
-    { id: 28, name: 'Egg Biryani', price: 10.00, category: 'Biryani', image: '🍛' },
-    
-    // Chicken Dishes
-    { id: 29, name: 'Grilled Chicken', price: 18.00, category: 'Chicken Dishes', image: '🍗' },
-    { id: 30, name: 'Chicken Tikka', price: 15.00, category: 'Chicken Dishes', image: '🍗' },
-    { id: 31, name: 'Butter Chicken', price: 16.00, category: 'Chicken Dishes', image: '🍗' },
-    { id: 32, name: 'Chicken Wings', price: 12.00, category: 'Chicken Dishes', image: '🍗' },
-    { id: 33, name: 'Chicken Quinoa', price: 14.00, category: 'Chicken Dishes', image: '🍗' },
-    
-    // Drinks
-    { id: 34, name: 'Fresh Orange Juice', price: 5.00, category: 'Drinks', image: '🥤' },
-    { id: 35, name: 'Mango Smoothie', price: 6.00, category: 'Drinks', image: '🥤' },
-    { id: 36, name: 'Iced Coffee', price: 4.00, category: 'Drinks', image: '☕' },
-    { id: 37, name: 'Green Tea', price: 3.00, category: 'Drinks', image: '🍵' },
-    { id: 38, name: 'Lemonade', price: 4.00, category: 'Drinks', image: '🥤' },
-    
-    // Fast Foods
-    { id: 39, name: 'Classic Burger', price: 10.00, category: 'Fast Foods', image: '🍔' },
-    { id: 40, name: 'Cheese Pizza', price: 12.00, category: 'Fast Foods', image: '🍕' },
-    { id: 41, name: 'Hot Dog', price: 8.00, category: 'Fast Foods', image: '🌭' },
-    { id: 42, name: 'French Fries', price: 5.00, category: 'Fast Foods', image: '🍟' },
-    { id: 43, name: 'Fried Chicken', price: 11.00, category: 'Fast Foods', image: '🍗' },
-    
-    // Salads
-    { id: 44, name: 'Caesar Salad', price: 9.00, category: 'Salads', image: '🥗' },
-    { id: 45, name: 'Greek Salad', price: 10.00, category: 'Salads', image: '🥗' },
-    { id: 46, name: 'Garden Salad', price: 8.00, category: 'Salads', image: '🥗' },
-    { id: 47, name: 'Chicken Salad', price: 12.00, category: 'Salads', image: '🥗' },
-    
-    // Soups
-    { id: 48, name: 'Tomato Soup', price: 6.00, category: 'Soups', image: '🍲' },
-    { id: 49, name: 'Chicken Soup', price: 7.00, category: 'Soups', image: '🍲' },
-    { id: 50, name: 'Mushroom Soup', price: 8.00, category: 'Soups', image: '🍲' }
-  ]);
+  // Load from localStorage on mount
+  const [dishes, setDishes] = useState(() => {
+    const savedDishes = localStorage.getItem('restaurantDishes');
+    if (savedDishes) {
+      return JSON.parse(savedDishes);
+    }
+    // Default dishes if nothing in localStorage
+    return [
+      // Desserts
+      { id: 1, name: 'Cheese Syrniky Pancakes', price: 8.00, category: 'Desserts', image: '🥞' },
+      { id: 2, name: 'Apple Stuffed Pancake', price: 10.00, category: 'Desserts', image: '🥞' },
+      { id: 3, name: 'Terracotta Bowl', price: 12.00, category: 'Desserts', image: '🍮' },
+      { id: 4, name: 'Croissant Dessert', price: 15.00, category: 'Desserts', image: '🥐' },
+      { id: 5, name: 'Granola Banana & Berry', price: 10.00, category: 'Desserts', image: '🥗' },
+      { id: 6, name: 'Vanilla Cherry Cupcake', price: 8.00, category: 'Desserts', image: '🧁' },
+      { id: 7, name: 'Belgian Waffles', price: 20.00, category: 'Desserts', image: '🧇' },
+      { id: 8, name: 'Granola with Yoghurt', price: 15.00, category: 'Desserts', image: '🥣' },
+      { id: 9, name: 'Chocolate Pancake', price: 12.00, category: 'Desserts', image: '🥞' },
+      { id: 10, name: 'Muesli Bowl', price: 10.00, category: 'Desserts', image: '🥗' },
+      { id: 11, name: 'Waffles with ice-cream', price: 10.00, category: 'Desserts', image: '🧇' },
+      { id: 12, name: 'Fruit Salad', price: 9.00, category: 'Desserts', image: '🍓' },
+      { id: 13, name: 'Ice Cream Sundae', price: 11.00, category: 'Desserts', image: '🍨' },
+      { id: 14, name: 'Tiramisu', price: 14.00, category: 'Desserts', image: '🍰' },
+      
+      // Breakfast
+      { id: 15, name: 'Eggs Benedict', price: 12.00, category: 'Breakfast', image: '🍳' },
+      { id: 16, name: 'French Toast', price: 10.00, category: 'Breakfast', image: '🍞' },
+      { id: 17, name: 'Breakfast Burrito', price: 11.00, category: 'Breakfast', image: '🌯' },
+      { id: 18, name: 'Omelette Special', price: 9.00, category: 'Breakfast', image: '🍳' },
+      { id: 19, name: 'Avocado Toast', price: 8.00, category: 'Breakfast', image: '🥑' },
+      
+      // Beef Dishes
+      { id: 20, name: 'Beef Steak', price: 30.00, category: 'Beef Dishes', image: '🥩' },
+      { id: 21, name: 'Beef Burger', price: 15.00, category: 'Beef Dishes', image: '🍔' },
+      { id: 22, name: 'Beef Tacos', price: 12.00, category: 'Beef Dishes', image: '🌮' },
+      { id: 23, name: 'Beef Stroganoff', price: 18.00, category: 'Beef Dishes', image: '🍲' },
+      { id: 24, name: 'BBQ Beef Ribs', price: 25.00, category: 'Beef Dishes', image: '🍖' },
+      
+      // Biryani
+      { id: 25, name: 'Chicken Biryani', price: 14.00, category: 'Biryani', image: '🍛' },
+      { id: 26, name: 'Mutton Biryani', price: 16.00, category: 'Biryani', image: '🍛' },
+      { id: 27, name: 'Vegetable Biryani', price: 12.00, category: 'Biryani', image: '🍛' },
+      { id: 28, name: 'Egg Biryani', price: 10.00, category: 'Biryani', image: '🍛' },
+      
+      // Chicken Dishes
+      { id: 29, name: 'Grilled Chicken', price: 18.00, category: 'Chicken Dishes', image: '🍗' },
+      { id: 30, name: 'Chicken Tikka', price: 15.00, category: 'Chicken Dishes', image: '🍗' },
+      { id: 31, name: 'Butter Chicken', price: 16.00, category: 'Chicken Dishes', image: '🍗' },
+      { id: 32, name: 'Chicken Wings', price: 12.00, category: 'Chicken Dishes', image: '🍗' },
+      { id: 33, name: 'Chicken Quinoa', price: 14.00, category: 'Chicken Dishes', image: '🍗' },
+      
+      // Drinks
+      { id: 34, name: 'Fresh Orange Juice', price: 5.00, category: 'Drinks', image: '🥤' },
+      { id: 35, name: 'Mango Smoothie', price: 6.00, category: 'Drinks', image: '🥤' },
+      { id: 36, name: 'Iced Coffee', price: 4.00, category: 'Drinks', image: '☕' },
+      { id: 37, name: 'Green Tea', price: 3.00, category: 'Drinks', image: '🍵' },
+      { id: 38, name: 'Lemonade', price: 4.00, category: 'Drinks', image: '🥤' },
+      
+      // Fast Foods
+      { id: 39, name: 'Classic Burger', price: 10.00, category: 'Fast Foods', image: '🍔' },
+      { id: 40, name: 'Cheese Pizza', price: 12.00, category: 'Fast Foods', image: '🍕' },
+      { id: 41, name: 'Hot Dog', price: 8.00, category: 'Fast Foods', image: '🌭' },
+      { id: 42, name: 'French Fries', price: 5.00, category: 'Fast Foods', image: '🍟' },
+      { id: 43, name: 'Fried Chicken', price: 11.00, category: 'Fast Foods', image: '🍗' },
+      
+      // Salads
+      { id: 44, name: 'Caesar Salad', price: 9.00, category: 'Salads', image: '🥗' },
+      { id: 45, name: 'Greek Salad', price: 10.00, category: 'Salads', image: '🥗' },
+      { id: 46, name: 'Garden Salad', price: 8.00, category: 'Salads', image: '🥗' },
+      { id: 47, name: 'Chicken Salad', price: 12.00, category: 'Salads', image: '🥗' },
+      
+      // Soups
+      { id: 48, name: 'Tomato Soup', price: 6.00, category: 'Soups', image: '🍲' },
+      { id: 49, name: 'Chicken Soup', price: 7.00, category: 'Soups', image: '🍲' },
+      { id: 50, name: 'Mushroom Soup', price: 8.00, category: 'Soups', image: '🍲' }
+    ];
+  });
+
+  // Save to localStorage whenever dishes change
+  useEffect(() => {
+    localStorage.setItem('restaurantDishes', JSON.stringify(dishes));
+    updateCategoryCounts();
+  }, [dishes]);
 
   const [newDish, setNewDish] = useState({
     name: '',
@@ -149,7 +162,6 @@ const ManageDishes = () => {
       };
       
       setDishes([...dishes, dish]);
-      updateCategoryCounts();
       
       setNewDish({ name: '', price: '', category: selectedCategory, image: '🍽️' });
       setShowAddModal(false);
@@ -175,7 +187,6 @@ const ManageDishes = () => {
   const handleDeleteDishes = () => {
     if (selectedDishes.length > 0 && window.confirm(`Delete ${selectedDishes.length} dish(es)?`)) {
       setDishes(dishes.filter(dish => !selectedDishes.includes(dish.id)));
-      updateCategoryCounts();
       setSelectedDishes([]);
       alert('Selected dishes deleted!');
     }
@@ -190,7 +201,7 @@ const ManageDishes = () => {
   // Handle category change
   const handleCategoryChange = (categoryName) => {
     setSelectedCategory(categoryName);
-    setSelectedDishes([]); // Clear selections when changing category
+    setSelectedDishes([]);
   };
 
   return (
@@ -213,17 +224,13 @@ const ManageDishes = () => {
           ))}
         </div>
 
-        <button className="add-category-btn">
-          <Plus size={20} />
-          Add New Category
-        </button>
+        {/* ❌ REMOVED: Add Category Button */}
       </div>
 
       {/* Main Content */}
       <div className="dishes-main-content">
-        {/* Header */}
         <div className="dishes-header">
-          <h1>Manage Dishes</h1>
+          <h1>Menu</h1>
           
           <div className="header-actions">
             <div className="search-box">
@@ -236,14 +243,10 @@ const ManageDishes = () => {
               />
             </div>
             
-            <button className="add-dish-btn" onClick={() => setShowAddModal(true)}>
-              <Plus size={20} />
-              Add New Dishes
-            </button>
+            {/* ❌ REMOVED: Add New Dishes Button */}
           </div>
         </div>
 
-        {/* Category Title and Controls */}
         <div className="content-controls">
           <h2 className="category-title">
             {selectedCategory} ({filteredDishes.length})
@@ -270,37 +273,16 @@ const ManageDishes = () => {
               Filter
             </button>
             
-            {selectedDishes.length > 0 && (
-              <button className="delete-selected-btn" onClick={handleDeleteDishes}>
-                <Trash2 size={18} />
-                Delete ({selectedDishes.length})
-              </button>
-            )}
+            {/* ❌ REMOVED: Bulk Delete Button */}
           </div>
         </div>
 
-        {/* Dishes Grid */}
         <div className={`dishes-grid ${viewMode}`}>
-          {/* Add New Dish Card */}
-          {selectedCategory !== 'All Dishes' && (
-            <div className="add-dish-card" onClick={() => setShowAddModal(true)}>
-              <div className="add-icon-circle">
-                <Plus size={40} />
-              </div>
-              <p>Add New Dish to<br/>{selectedCategory}</p>
-            </div>
-          )}
+          {/* ❌ REMOVED: Add Dish Card */}
 
-          {/* Dish Cards */}
           {filteredDishes.map(dish => (
             <div key={dish.id} className="dish-card">
-              <div className="dish-checkbox">
-                <input
-                  type="checkbox"
-                  checked={selectedDishes.includes(dish.id)}
-                  onChange={() => handleSelectDish(dish.id)}
-                />
-              </div>
+              {/* ❌ REMOVED: Checkbox */}
               
               <div className="dish-image">
                 <span className="dish-emoji">{dish.image}</span>
@@ -309,28 +291,10 @@ const ManageDishes = () => {
               <div className="dish-info">
                 <span className="dish-category-label">{dish.category}</span>
                 <h3 className="dish-name">{dish.name}</h3>
-                <p className="dish-price">${dish.price.toFixed(2)}</p>
+                <p className="dish-price">₹{dish.price.toFixed(2)}</p>
               </div>
               
-              <div className="dish-actions">
-                <button
-                  className="edit-dish-btn"
-                  onClick={() => openEditModal(dish)}
-                >
-                  <Edit2 size={16} />
-                </button>
-                <button
-                  className="delete-dish-btn"
-                  onClick={() => {
-                    if (window.confirm(`Delete ${dish.name}?`)) {
-                      setDishes(dishes.filter(d => d.id !== dish.id));
-                      updateCategoryCounts();
-                    }
-                  }}
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
+              {/* ❌ REMOVED: Edit/Delete Buttons */}
             </div>
           ))}
         </div>
@@ -342,7 +306,7 @@ const ManageDishes = () => {
         )}
       </div>
 
-      {/* Add Dish Modal */}
+      {/* Add Modal - Keep for future use */}
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -413,7 +377,7 @@ const ManageDishes = () => {
         </div>
       )}
 
-      {/* Edit Dish Modal */}
+      {/* Edit Modal */}
       {showEditModal && editingDish && (
         <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -484,4 +448,4 @@ const ManageDishes = () => {
   );
 };
 
-export default ManageDishes;
+export default Menu;

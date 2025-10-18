@@ -1,210 +1,180 @@
 // src/pages/Customers/Customers.jsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Search, 
-  Plus, 
-  Edit2, 
-  Trash2, 
-  Phone, 
-  Mail, 
-  MapPin,
+  Receipt,
+  Eye,
+  Download,
   Calendar,
   DollarSign,
   ShoppingBag,
   X,
-  Check,
-  Eye,
-  Filter,
-  Download,
   TrendingUp,
-  Star,
-  Users
+  Clock,
+  CheckCircle,
+  FileText
 } from 'lucide-react';
+import { useOrders } from '../context/OrderContext';
 import './Customers.css';
 
 const Customers = () => {
+  const { orders } = useOrders();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [showBillModal, setShowBillModal] = useState(false);
+  const [selectedBill, setSelectedBill] = useState(null);
 
-  const [customers, setCustomers] = useState([
-    {
-      id: 1,
-      name: 'Sarah Johnson',
-      email: 'sarah.j@email.com',
-      phone: '+1 (555) 123-4567',
-      address: '123 Main St, New York, NY',
-      joinDate: '2024-01-15',
-      totalOrders: 24,
-      totalSpent: 1450.00,
-      status: 'VIP',
-      lastVisit: '2 days ago',
-      avatar: '👩‍💼'
-    },
-    {
-      id: 2,
-      name: 'Michael Chen',
-      email: 'mchen@email.com',
-      phone: '+1 (555) 234-5678',
-      address: '456 Oak Ave, Los Angeles, CA',
-      joinDate: '2024-02-20',
-      totalOrders: 18,
-      totalSpent: 980.50,
-      status: 'Regular',
-      lastVisit: '1 week ago',
-      avatar: '👨‍💼'
-    },
-    {
-      id: 3,
-      name: 'Emily Rodriguez',
-      email: 'emily.r@email.com',
-      phone: '+1 (555) 345-6789',
-      address: '789 Pine Rd, Chicago, IL',
-      joinDate: '2024-03-10',
-      totalOrders: 35,
-      totalSpent: 2100.75,
-      status: 'VIP',
-      lastVisit: 'Today',
-      avatar: '👩‍🦱'
-    },
-    {
-      id: 4,
-      name: 'David Kim',
-      email: 'david.kim@email.com',
-      phone: '+1 (555) 456-7890',
-      address: '321 Elm St, Houston, TX',
-      joinDate: '2024-01-05',
-      totalOrders: 12,
-      totalSpent: 650.00,
-      status: 'Regular',
-      lastVisit: '3 days ago',
-      avatar: '👨‍💻'
-    },
-    {
-      id: 5,
-      name: 'Jessica Williams',
-      email: 'jwilliams@email.com',
-      phone: '+1 (555) 567-8901',
-      address: '654 Maple Dr, Phoenix, AZ',
-      joinDate: '2024-04-12',
-      totalOrders: 8,
-      totalSpent: 420.00,
-      status: 'New',
-      lastVisit: 'Yesterday',
-      avatar: '👩‍🎨'
-    },
-    {
-      id: 6,
-      name: 'Robert Taylor',
-      email: 'rtaylor@email.com',
-      phone: '+1 (555) 678-9012',
-      address: '987 Cedar Ln, Miami, FL',
-      joinDate: '2024-02-28',
-      totalOrders: 28,
-      totalSpent: 1680.25,
-      status: 'VIP',
-      lastVisit: '5 hours ago',
-      avatar: '👨‍🔧'
-    }
-  ]);
+  // Get served orders only (bills)
+  const servedOrders = orders.filter(order => order.status === 'served');
 
-  const [newCustomer, setNewCustomer] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    address: ''
-  });
+  // Today's filter
+  const today = new Date().toDateString();
+  const todayOrders = servedOrders.filter(order => 
+    new Date(order.createdAt).toDateString() === today
+  );
+
+  // This week filter
+  const oneWeekAgo = new Date();
+  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+  const weekOrders = servedOrders.filter(order => 
+    new Date(order.createdAt) >= oneWeekAgo
+  );
 
   // Filter options
   const filterOptions = [
-    { name: 'All', count: customers.length },
-    { name: 'VIP', count: customers.filter(c => c.status === 'VIP').length },
-    { name: 'Regular', count: customers.filter(c => c.status === 'Regular').length },
-    { name: 'New', count: customers.filter(c => c.status === 'New').length }
+    { name: 'All', count: servedOrders.length },
+    { name: 'Today', count: todayOrders.length },
+    { name: 'This Week', count: weekOrders.length }
   ];
 
-  // Customer statistics
+  // Statistics
   const stats = {
-    total: customers.length,
-    vip: customers.filter(c => c.status === 'VIP').length,
-    totalRevenue: customers.reduce((sum, c) => sum + c.totalSpent, 0),
-    avgOrders: Math.round(customers.reduce((sum, c) => sum + c.totalOrders, 0) / customers.length)
+    totalBills: servedOrders.length,
+    todayBills: todayOrders.length,
+    totalRevenue: servedOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0),
+    avgBill: servedOrders.length > 0 
+      ? servedOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0) / servedOrders.length 
+      : 0
   };
 
-  // Filter customers
-  const filteredCustomers = customers.filter(customer => {
-    const matchesSearch = customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         customer.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         customer.phone.includes(searchQuery);
+  // Filter orders
+  const getFilteredOrders = () => {
+    let filtered = servedOrders;
+
+    if (selectedFilter === 'Today') {
+      filtered = todayOrders;
+    } else if (selectedFilter === 'This Week') {
+      filtered = weekOrders;
+    }
+
+    if (searchQuery) {
+      filtered = filtered.filter(order => 
+        order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        order.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        order.tableNumber.toString().includes(searchQuery)
+      );
+    }
+
+    return filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  };
+
+  const filteredOrders = getFilteredOrders();
+
+  // Format date
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Calculate tax & total
+  const calculateBillDetails = (order) => {
+    const subtotal = order.totalAmount || 0;
+    const tax = subtotal * 0.18; // 18% GST
+    const total = subtotal + tax;
     
-    if (selectedFilter === 'All') return matchesSearch;
-    return matchesSearch && customer.status === selectedFilter;
-  });
-
-  // Get status color
-  const getStatusColor = (status) => {
-    switch(status) {
-      case 'VIP':
-        return { bg: '#FEF3C7', color: '#D97706', icon: '⭐' };
-      case 'Regular':
-        return { bg: '#DBEAFE', color: '#2563EB', icon: '👤' };
-      case 'New':
-        return { bg: '#D1FAE5', color: '#059669', icon: '✨' };
-      default:
-        return { bg: '#F3F4F6', color: '#6B7280', icon: '👤' };
-    }
+    return { subtotal, tax, total };
   };
 
-  // Add customer
-  const handleAddCustomer = () => {
-    if (newCustomer.name && newCustomer.email && newCustomer.phone) {
-      const customer = {
-        id: Date.now(),
-        ...newCustomer,
-        joinDate: new Date().toISOString().split('T')[0],
-        totalOrders: 0,
-        totalSpent: 0,
-        status: 'New',
-        lastVisit: 'Today',
-        avatar: '👤'
-      };
-      
-      setCustomers([customer, ...customers]);
-      setNewCustomer({ name: '', email: '', phone: '', address: '' });
-      setShowAddModal(false);
-      alert('✅ Customer added successfully!');
-    } else {
-      alert('Please fill in all required fields');
-    }
-  };
-
-  // Delete customer
-  const handleDeleteCustomer = (customerId) => {
-    const customer = customers.find(c => c.id === customerId);
-    if (customer && window.confirm(`Delete ${customer.name}?`)) {
-      setCustomers(customers.filter(c => c.id !== customerId));
-      setShowDetailsModal(false);
-    }
-  };
-
-  // Export customers
-  const handleExport = () => {
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + "Name,Email,Phone,Address,Join Date,Total Orders,Total Spent,Status\n"
-      + customers.map(c => 
-          `${c.name},${c.email},${c.phone},${c.address},${c.joinDate},${c.totalOrders},${c.totalSpent},${c.status}`
-        ).join("\n");
+  // Print bill
+  const handlePrintBill = (order) => {
+    const billDetails = calculateBillDetails(order);
     
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "customers.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Bill - ${order.id}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          .bill-header { text-align: center; margin-bottom: 20px; }
+          .bill-info { margin: 20px 0; }
+          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          th { background-color: #f2f2f2; }
+          .total-row { font-weight: bold; font-size: 18px; }
+        </style>
+      </head>
+      <body>
+        <div class="bill-header">
+          <h1>🍽️ Tasty Station</h1>
+          <p>Invoice: ${order.id}</p>
+        </div>
+        <div class="bill-info">
+          <p><strong>Date:</strong> ${formatDate(order.createdAt)}</p>
+          <p><strong>Table:</strong> ${order.tableNumber}</p>
+          <p><strong>Customer:</strong> ${order.customerName}</p>
+          <p><strong>Waiter:</strong> ${order.waiter}</p>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Qty</th>
+              <th>Price</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${order.items.map(item => `
+              <tr>
+                <td>${item.name}</td>
+                <td>${item.quantity}</td>
+                <td>₹${item.price.toFixed(2)}</td>
+                <td>₹${(item.price * item.quantity).toFixed(2)}</td>
+              </tr>
+            `).join('')}
+            <tr>
+              <td colspan="3" align="right"><strong>Subtotal:</strong></td>
+              <td>₹${billDetails.subtotal.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td colspan="3" align="right"><strong>Tax (18%):</strong></td>
+              <td>₹${billDetails.tax.toFixed(2)}</td>
+            </tr>
+            <tr class="total-row">
+              <td colspan="3" align="right"><strong>Total:</strong></td>
+              <td>₹${billDetails.total.toFixed(2)}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="text-align: center; margin-top: 30px;">
+          <p>Thank you for dining with us!</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '', 'height=600,width=800');
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.print();
   };
 
   return (
@@ -212,18 +182,8 @@ const Customers = () => {
       {/* Header */}
       <div className="customers-header">
         <div className="header-left">
-          <h1>Customers</h1>
-          <p>Manage your customer database</p>
-        </div>
-        <div className="header-actions">
-          <button className="export-btn" onClick={handleExport}>
-            <Download size={18} />
-            Export
-          </button>
-          <button className="add-customer-btn" onClick={() => setShowAddModal(true)}>
-            <Plus size={20} />
-            Add Customer
-          </button>
+          <h1>Bills & Orders</h1>
+          <p>View completed orders and generate bills</p>
         </div>
       </div>
 
@@ -231,21 +191,21 @@ const Customers = () => {
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-icon" style={{ background: '#DBEAFE' }}>
-            <Users size={24} style={{ color: '#2563EB' }} />
+            <Receipt size={24} style={{ color: '#2563EB' }} />
           </div>
           <div className="stat-content">
-            <h3>{stats.total}</h3>
-            <p>Total Customers</p>
+            <h3>{stats.totalBills}</h3>
+            <p>Total Bills</p>
           </div>
         </div>
 
         <div className="stat-card">
           <div className="stat-icon" style={{ background: '#FEF3C7' }}>
-            <Star size={24} style={{ color: '#D97706' }} />
+            <Clock size={24} style={{ color: '#D97706' }} />
           </div>
           <div className="stat-content">
-            <h3>{stats.vip}</h3>
-            <p>VIP Customers</p>
+            <h3>{stats.todayBills}</h3>
+            <p>Today's Bills</p>
           </div>
         </div>
 
@@ -254,7 +214,7 @@ const Customers = () => {
             <DollarSign size={24} style={{ color: '#059669' }} />
           </div>
           <div className="stat-content">
-            <h3>${stats.totalRevenue.toLocaleString()}</h3>
+            <h3>₹{stats.totalRevenue.toLocaleString()}</h3>
             <p>Total Revenue</p>
           </div>
         </div>
@@ -264,8 +224,8 @@ const Customers = () => {
             <TrendingUp size={24} style={{ color: '#A855F7' }} />
           </div>
           <div className="stat-content">
-            <h3>{stats.avgOrders}</h3>
-            <p>Avg Orders</p>
+            <h3>₹{stats.avgBill.toFixed(2)}</h3>
+            <p>Avg Bill Amount</p>
           </div>
         </div>
       </div>
@@ -289,7 +249,7 @@ const Customers = () => {
           <Search size={18} className="search-icon" />
           <input
             type="text"
-            placeholder="Search customers by name, email or phone..."
+            placeholder="Search by order ID, customer name or table..."
             className="search-input"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -297,68 +257,55 @@ const Customers = () => {
         </div>
       </div>
 
-      {/* Customers Grid */}
+      {/* Bills Grid */}
       <div className="customers-grid">
-        {filteredCustomers.length === 0 ? (
+        {filteredOrders.length === 0 ? (
           <div className="no-customers">
-            <Users size={64} />
-            <h3>No customers found</h3>
+            <Receipt size={64} />
+            <h3>No bills found</h3>
             <p>Try adjusting your search or filters</p>
           </div>
         ) : (
-          filteredCustomers.map(customer => {
-            const statusColor = getStatusColor(customer.status);
+          filteredOrders.map(order => {
+            const billDetails = calculateBillDetails(order);
             
             return (
-              <div key={customer.id} className="customer-card">
+              <div key={order.id} className="customer-card">
                 <div className="customer-card-header">
-                  <div className="customer-avatar">{customer.avatar}</div>
-                  <span 
-                    className="customer-status"
-                    style={{ 
-                      background: statusColor.bg, 
-                      color: statusColor.color 
-                    }}
-                  >
-                    {statusColor.icon} {customer.status}
+                  <div className="bill-id">
+                    <Receipt size={20} />
+                    <span>{order.id}</span>
+                  </div>
+                  <span className="bill-status">
+                    <CheckCircle size={16} />
+                    Completed
                   </span>
                 </div>
 
                 <div className="customer-info">
-                  <h3>{customer.name}</h3>
+                  <h3>{order.customerName}</h3>
                   <div className="customer-details">
                     <div className="detail-item">
-                      <Mail size={14} />
-                      <span>{customer.email}</span>
+                      <ShoppingBag size={14} />
+                      <span>Table {order.tableNumber}</span>
                     </div>
                     <div className="detail-item">
-                      <Phone size={14} />
-                      <span>{customer.phone}</span>
+                      <Clock size={14} />
+                      <span>{formatDate(order.createdAt)}</span>
                     </div>
                     <div className="detail-item">
-                      <MapPin size={14} />
-                      <span>{customer.address}</span>
-                    </div>
-                    <div className="detail-item">
-                      <Calendar size={14} />
-                      <span>Last visit: {customer.lastVisit}</span>
+                      <FileText size={14} />
+                      <span>{order.items.length} items</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="customer-stats">
                   <div className="stat-item">
-                    <ShoppingBag size={16} />
-                    <div>
-                      <p className="stat-value">{customer.totalOrders}</p>
-                      <p className="stat-label">Orders</p>
-                    </div>
-                  </div>
-                  <div className="stat-item">
                     <DollarSign size={16} />
                     <div>
-                      <p className="stat-value">${customer.totalSpent.toFixed(2)}</p>
-                      <p className="stat-label">Spent</p>
+                      <p className="stat-value">₹{billDetails.total.toFixed(2)}</p>
+                      <p className="stat-label">Total (incl. tax)</p>
                     </div>
                   </div>
                 </div>
@@ -367,21 +314,19 @@ const Customers = () => {
                   <button 
                     className="action-btn view-btn"
                     onClick={() => {
-                      setSelectedCustomer(customer);
-                      setShowDetailsModal(true);
+                      setSelectedBill(order);
+                      setShowBillModal(true);
                     }}
                   >
                     <Eye size={16} />
                     View
                   </button>
-                  <button className="action-btn edit-btn">
-                    <Edit2 size={16} />
-                  </button>
                   <button 
-                    className="action-btn delete-btn"
-                    onClick={() => handleDeleteCustomer(customer.id)}
+                    className="action-btn download-btn"
+                    onClick={() => handlePrintBill(order)}
                   >
-                    <Trash2 size={16} />
+                    <Download size={16} />
+                    Print
                   </button>
                 </div>
               </div>
@@ -390,170 +335,96 @@ const Customers = () => {
         )}
       </div>
 
-      {/* Add Customer Modal */}
-      {showAddModal && (
-        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div>
-                <h2>Add New Customer</h2>
-                <p>Fill in customer details</p>
-              </div>
-              <button className="modal-close-btn" onClick={() => setShowAddModal(false)}>
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="modal-body">
-              <div className="form-grid">
-                <div className="form-group full-width">
-                  <label>Full Name *</label>
-                  <input
-                    type="text"
-                    placeholder="Enter customer name"
-                    value={newCustomer.name}
-                    onChange={(e) => setNewCustomer({...newCustomer, name: e.target.value})}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Email Address *</label>
-                  <input
-                    type="email"
-                    placeholder="customer@email.com"
-                    value={newCustomer.email}
-                    onChange={(e) => setNewCustomer({...newCustomer, email: e.target.value})}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Phone Number *</label>
-                  <input
-                    type="tel"
-                    placeholder="+1 (555) 123-4567"
-                    value={newCustomer.phone}
-                    onChange={(e) => setNewCustomer({...newCustomer, phone: e.target.value})}
-                  />
-                </div>
-
-                <div className="form-group full-width">
-                  <label>Address</label>
-                  <textarea
-                    placeholder="Enter customer address"
-                    rows="3"
-                    value={newCustomer.address}
-                    onChange={(e) => setNewCustomer({...newCustomer, address: e.target.value})}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="modal-footer">
-              <button className="btn-cancel" onClick={() => setShowAddModal(false)}>
-                Cancel
-              </button>
-              <button className="btn-confirm" onClick={handleAddCustomer}>
-                <Check size={18} />
-                Add Customer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Customer Details Modal */}
-      {showDetailsModal && selectedCustomer && (
-        <div className="modal-overlay" onClick={() => setShowDetailsModal(false)}>
+      {/* Bill Details Modal */}
+      {showBillModal && selectedBill && (
+        <div className="modal-overlay" onClick={() => setShowBillModal(false)}>
           <div className="modal-content details-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <div className="modal-header-with-avatar">
-                <div className="modal-avatar">{selectedCustomer.avatar}</div>
-                <div>
-                  <h2>{selectedCustomer.name}</h2>
-                  <p style={{ 
-                    color: getStatusColor(selectedCustomer.status).color,
-                    fontWeight: 600 
-                  }}>
-                    {getStatusColor(selectedCustomer.status).icon} {selectedCustomer.status} Customer
-                  </p>
-                </div>
+              <div>
+                <h2>🧾 Invoice - {selectedBill.id}</h2>
+                <p>Order details and billing information</p>
               </div>
-              <button className="modal-close-btn" onClick={() => setShowDetailsModal(false)}>
+              <button className="modal-close-btn" onClick={() => setShowBillModal(false)}>
                 <X size={24} />
               </button>
             </div>
 
             <div className="modal-body">
-              <div className="details-grid">
-                <div className="detail-section">
-                  <h4>Contact Information</h4>
-                  <div className="detail-row">
-                    <Mail size={18} />
-                    <div>
-                      <p className="detail-label">Email</p>
-                      <p className="detail-value">{selectedCustomer.email}</p>
-                    </div>
-                  </div>
-                  <div className="detail-row">
-                    <Phone size={18} />
-                    <div>
-                      <p className="detail-label">Phone</p>
-                      <p className="detail-value">{selectedCustomer.phone}</p>
-                    </div>
-                  </div>
-                  <div className="detail-row">
-                    <MapPin size={18} />
-                    <div>
-                      <p className="detail-label">Address</p>
-                      <p className="detail-value">{selectedCustomer.address}</p>
-                    </div>
-                  </div>
+              {/* Bill Info */}
+              <div className="bill-info-section">
+                <div className="info-row">
+                  <span className="info-label">Date:</span>
+                  <span className="info-value">{formatDate(selectedBill.createdAt)}</span>
                 </div>
+                <div className="info-row">
+                  <span className="info-label">Table:</span>
+                  <span className="info-value">Table {selectedBill.tableNumber}</span>
+                </div>
+                <div className="info-row">
+                  <span className="info-label">Customer:</span>
+                  <span className="info-value">{selectedBill.customerName}</span>
+                </div>
+                <div className="info-row">
+                  <span className="info-label">Waiter:</span>
+                  <span className="info-value">{selectedBill.waiter}</span>
+                </div>
+              </div>
 
-                <div className="detail-section">
-                  <h4>Customer Statistics</h4>
-                  <div className="detail-row">
-                    <Calendar size={18} />
-                    <div>
-                      <p className="detail-label">Join Date</p>
-                      <p className="detail-value">{selectedCustomer.joinDate}</p>
-                    </div>
-                  </div>
-                  <div className="detail-row">
-                    <ShoppingBag size={18} />
-                    <div>
-                      <p className="detail-label">Total Orders</p>
-                      <p className="detail-value">{selectedCustomer.totalOrders} orders</p>
-                    </div>
-                  </div>
-                  <div className="detail-row">
-                    <DollarSign size={18} />
-                    <div>
-                      <p className="detail-label">Total Spent</p>
-                      <p className="detail-value">${selectedCustomer.totalSpent.toFixed(2)}</p>
-                    </div>
-                  </div>
-                  <div className="detail-row">
-                    <Calendar size={18} />
-                    <div>
-                      <p className="detail-label">Last Visit</p>
-                      <p className="detail-value">{selectedCustomer.lastVisit}</p>
-                    </div>
-                  </div>
-                </div>
+              {/* Items Table */}
+              <div className="bill-items-table">
+                <h4>Order Items</h4>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th>Qty</th>
+                      <th>Price</th>
+                      <th>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedBill.items.map((item, index) => (
+                      <tr key={index}>
+                        <td>
+                          <div>
+                            <strong>{item.name}</strong>
+                            {item.notes && <small className="item-note">📝 {item.notes}</small>}
+                          </div>
+                        </td>
+                        <td>{item.quantity}</td>
+                        <td>₹{item.price.toFixed(2)}</td>
+                        <td>₹{(item.price * item.quantity).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan="3" align="right"><strong>Subtotal:</strong></td>
+                      <td>₹{calculateBillDetails(selectedBill).subtotal.toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                      <td colSpan="3" align="right"><strong>Tax (18% GST):</strong></td>
+                      <td>₹{calculateBillDetails(selectedBill).tax.toFixed(2)}</td>
+                    </tr>
+                    <tr className="total-row">
+                      <td colSpan="3" align="right"><strong>Total Amount:</strong></td>
+                      <td><strong>₹{calculateBillDetails(selectedBill).total.toFixed(2)}</strong></td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
             </div>
 
             <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setShowDetailsModal(false)}>
+              <button className="btn-secondary" onClick={() => setShowBillModal(false)}>
                 Close
               </button>
               <button 
                 className="btn-primary"
-                onClick={() => handleDeleteCustomer(selectedCustomer.id)}
+                onClick={() => handlePrintBill(selectedBill)}
               >
-                <Trash2 size={18} />
-                Delete Customer
+                <Download size={18} />
+                Print Bill
               </button>
             </div>
           </div>

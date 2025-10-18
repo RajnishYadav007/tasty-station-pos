@@ -4,14 +4,15 @@ import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
-  LayoutDashboard,  // ✅ Import back
+  LayoutDashboard,
   ShoppingCart, 
   Grid3x3, 
   Utensils, 
   Users, 
   Settings, 
   HelpCircle, 
-  LogOut
+  LogOut,
+  BookOpen  // ✅ Add this import
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -35,33 +36,33 @@ const Sidebar = () => {
     // Owner - Full Access (WITH DASHBOARD)
     if (role === 'Owner') {
       return [
-        { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },  // ✅ ADDED BACK
-        { path: '/order-line', icon: ShoppingCart, label: 'Order Line' },
-        { path: '/manage-table', icon: Grid3x3, label: 'Manage Table' },
-        { path: '/manage-dishes', icon: Utensils, label: 'Manage Dishes' },
+        { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },  
+         { path: '/manage-table', icon: Grid3x3, label: 'Manage Table' },
+        { path: '/orderline', icon: ShoppingCart, label: 'Order Line' },
+       
+        { path: '/menu', icon: BookOpen, label: 'Menu' },
         { path: '/customers', icon: Users, label: 'Customers' }
       ];
     }
 
-    // Waiter - Table & Orders
+    // Waiter - Table Only
     if (role === 'Waiter') {
       return [
-        { path: '/manage-table', icon: Grid3x3, label: 'Manage Table' },
-        { path: '/order-line', icon: ShoppingCart, label: 'Take Order' }
+        { path: '/manage-table', icon: Grid3x3, label: 'Manage Table' }
       ];
     }
 
-    // Chef - ONLY Manage Dishes
+    // Chef - OrderLine Only
     if (role === 'Chef') {
       return [
-        { path: '/manage-dishes', icon: Utensils, label: 'Manage Dishes' }
+        { path: '/orderline', icon: ShoppingCart, label: 'Order Line' }
       ];
     }
 
-    // Customer - Order Only
+    // ✅ CHANGE: Customer - Menu Only (Updated icon)
     if (role === 'Customer') {
       return [
-        { path: '/order-line', icon: ShoppingCart, label: 'Place Order' }
+        { path: '/menu', icon: BookOpen, label: 'Menu' }  
       ];
     }
 
