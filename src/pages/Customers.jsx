@@ -25,8 +25,11 @@ const Customers = () => {
   const [showBillModal, setShowBillModal] = useState(false);
   const [selectedBill, setSelectedBill] = useState(null);
 
-  // Get served orders only (bills)
-  const servedOrders = orders.filter(order => order.status === 'served');
+  // ✅ Get served orders only (bills) - Check if ALL items are served
+  const servedOrders = orders.filter(order => {
+    if (!order.items || order.items.length === 0) return false;
+    return order.items.every(item => item.status === 'served');
+  });
 
   // Today's filter
   const today = new Date().toDateString();
@@ -48,13 +51,33 @@ const Customers = () => {
     { name: 'This Week', count: weekOrders.length }
   ];
 
-  // Statistics
+  // ✅ Calculate tax & total from items
+  const calculateBillDetails = (order) => {
+    const subtotal = order.items.reduce((sum, item) => {
+      const price = parseFloat(item.price) || 0;
+      const quantity = parseInt(item.quantity) || 1;
+      return sum + (price * quantity);
+    }, 0);
+    
+    const tax = subtotal * 0.18; // 18% GST
+    const total = subtotal + tax;
+    
+    return { subtotal, tax, total };
+  };
+
+  // ✅ Statistics - Calculate from items
   const stats = {
     totalBills: servedOrders.length,
     todayBills: todayOrders.length,
-    totalRevenue: servedOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0),
+    totalRevenue: servedOrders.reduce((sum, order) => {
+      const { total } = calculateBillDetails(order);
+      return sum + total;
+    }, 0),
     avgBill: servedOrders.length > 0 
-      ? servedOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0) / servedOrders.length 
+      ? servedOrders.reduce((sum, order) => {
+          const { total } = calculateBillDetails(order);
+          return sum + total;
+        }, 0) / servedOrders.length 
       : 0
   };
 
@@ -91,15 +114,6 @@ const Customers = () => {
       hour: '2-digit',
       minute: '2-digit'
     });
-  };
-
-  // Calculate tax & total
-  const calculateBillDetails = (order) => {
-    const subtotal = order.totalAmount || 0;
-    const tax = subtotal * 0.18; // 18% GST
-    const total = subtotal + tax;
-    
-    return { subtotal, tax, total };
   };
 
   // Print bill
@@ -263,7 +277,7 @@ const Customers = () => {
           <div className="no-customers">
             <Receipt size={64} />
             <h3>No bills found</h3>
-            <p>Try adjusting your search or filters</p>
+            <p>Complete orders will appear here once all items are served</p>
           </div>
         ) : (
           filteredOrders.map(order => {

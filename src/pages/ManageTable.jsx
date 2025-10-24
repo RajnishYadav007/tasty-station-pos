@@ -1,6 +1,6 @@
 // src/pages/ManageTable/ManageTable.jsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrders } from '../context/OrderContext';
 import { Users, Plus, X, Check, ShoppingCart, Receipt } from 'lucide-react';
@@ -9,7 +9,7 @@ import './ManageTable.css';
 
 const ManageTable = () => {
   const navigate = useNavigate();
-  const { addOrder } = useOrders();
+  const { addOrder, completeOrder } = useOrders();
   
   const [selectedArea, setSelectedArea] = useState('Main Dining');
   const [selectedTable, setSelectedTable] = useState(null);
@@ -18,51 +18,82 @@ const ManageTable = () => {
   const [billTable, setBillTable] = useState(null);
   const [showTakeOrderModal, setShowTakeOrderModal] = useState(false);  
   const [orderTable, setOrderTable] = useState(null);  
+  const [showGuestModal, setShowGuestModal] = useState(false);
+  const [guestCount, setGuestCount] = useState(2);
+  const [tempTable, setTempTable] = useState(null);
 
-  const [tables, setTables] = useState([
-    { id: 1, number: 1, capacity: 6, status: 'reserved', area: 'Main Dining' },
-    { id: 2, number: 2, capacity: 2, status: 'occupied', area: 'Main Dining' },
+  // ✅ Initial table data
+  const initialTables = [
+    { id: 1, number: 1, capacity: 6, status: 'available', area: 'Main Dining' },
+    { id: 2, number: 2, capacity: 2, status: 'available', area: 'Main Dining' },
     { id: 3, number: 3, capacity: 2, status: 'available', area: 'Main Dining' },
-    { id: 4, number: 4, capacity: 3, status: 'occupied', area: 'Main Dining' },
+    { id: 4, number: 4, capacity: 3, status: 'available', area: 'Main Dining' },
     { id: 5, number: 5, capacity: 4, status: 'available', area: 'Main Dining' },
     { id: 6, number: 6, capacity: 7, status: 'available', area: 'Main Dining' },
     { id: 7, number: 7, capacity: 10, status: 'available', area: 'Main Dining' },
-    { id: 8, number: 8, capacity: 2, status: 'reserved', area: 'Main Dining' },
-    { id: 9, number: 9, capacity: 4, status: 'occupied', area: 'Main Dining' },
-    { id: 10, number: 10, capacity: 2, status: 'reserved', area: 'Main Dining' },
+    { id: 8, number: 8, capacity: 2, status: 'available', area: 'Main Dining' },
+    { id: 9, number: 9, capacity: 4, status: 'available', area: 'Main Dining' },
+    { id: 10, number: 10, capacity: 2, status: 'available', area: 'Main Dining' },
     { id: 11, number: 11, capacity: 2, status: 'available', area: 'Terrace' },
     { id: 12, number: 12, capacity: 8, status: 'available', area: 'Terrace' },
-    { id: 13, number: 13, capacity: 4, status: 'reserved', area: 'Terrace' },
+    { id: 13, number: 13, capacity: 4, status: 'available', area: 'Terrace' },
     { id: 14, number: 14, capacity: 6, status: 'available', area: 'Outdoor' },
-    { id: 15, number: 15, capacity: 4, status: 'occupied', area: 'Outdoor' }
-  ]);
+    { id: 15, number: 15, capacity: 4, status: 'available', area: 'Outdoor' }
+  ];
 
-  const [newReservation, setNewReservation] = useState({
-    name: '',
-    time: '',
-    guests: 2,
-    phone: '',
-    table: null
+  const [tables, setTables] = useState(() => {
+    // ✅ Load from localStorage or use initial data
+    const saved = localStorage.getItem('restaurantTables');
+    return saved ? JSON.parse(saved) : initialTables;
   });
+
+  // ✅ Save tables to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('restaurantTables', JSON.stringify(tables));
+  }, [tables]);
 
   const areas = ['Main Dining', 'Terrace', 'Outdoor'];
 
-  // ✅ Updated - Open modal instead of navigate
-  const handleTakeOrder = (table) => {
-    changeTableStatus(table.id, 'occupied');
+  // 🟢 Available button → Guest modal
+  const handleAvailableClick = (table) => {
+    setTempTable(table);
+    setGuestCount(2);
+    setShowGuestModal(true);
+  };
+
+  // 🟢 Confirm guests → Occupied → TakeOrder
+  const handleConfirmGuests = () => {
+    if (tempTable && guestCount > 0) {
+      changeTableStatus(tempTable.id, 'occupied');
+      setOrderTable(tempTable);
+      setShowGuestModal(false);
+      setShowTakeOrderModal(true);
+      setTempTable(null);
+    }
+  };
+
+  // 🔵 Occupied button → TakeOrder modal (add more orders)
+  const handleOccupiedClick = (table) => {
     setOrderTable(table);
     setShowTakeOrderModal(true);
   };
 
+  // 🟠 Bill button → Bill modal
   const handleGenerateBill = (table) => {
     setBillTable(table);
     setShowBillModal(true);
   };
 
+  // 🟢 Bill Paid → Complete Order → Available
   const handleBillPayment = () => {
     if (billTable) {
+      // ✅ Complete order in context (moves to completed bills)
+      // Find order by table number if you're tracking it
+      // completeOrder(orderId, { method: 'cash', tableNumber: billTable.number });
+      
+      // ✅ Change table to available
       changeTableStatus(billTable.id, 'available');
-      alert(`Bill paid for Table #${billTable.number}. Table is now available!`);
+      alert(`✅ Bill paid for Table #${billTable.number}. Table is now available!`);
       setShowBillModal(false);
       setBillTable(null);
     }
@@ -86,31 +117,15 @@ const ManageTable = () => {
   };
 
   const changeTableStatus = (tableId, newStatus) => {
-    setTables(tables.map(table => 
-      table.id === tableId ? { ...table, status: newStatus } : table
-    ));
+    setTables(prevTables =>
+      prevTables.map(table => 
+        table.id === tableId ? { ...table, status: newStatus } : table
+      )
+    );
+    console.log(`✅ Table ${tableId} status changed to: ${newStatus}`);
   };
 
   const filteredTables = tables.filter(table => table.area === selectedArea);
-
-  const handleAddReservation = () => {
-    if (newReservation.name && newReservation.table) {
-      changeTableStatus(newReservation.table, 'reserved');
-      
-      setNewReservation({
-        name: '',
-        time: '',
-        guests: 2,
-        phone: '',
-        table: null
-      });
-      
-      setShowReservationModal(false);
-      alert(`Reservation added for ${newReservation.name}`);
-    } else {
-      alert('Please fill in all required fields');
-    }
-  };
 
   return (
     <div className="manage-table-page-fullwidth">
@@ -134,10 +149,6 @@ const ManageTable = () => {
           <div className="legend-item">
             <div className="legend-dot available"></div>
             <span>Available</span>
-          </div>
-          <div className="legend-item">
-            <div className="legend-dot reserved"></div>
-            <span>Reserved</span>
           </div>
           <div className="legend-item">
             <div className="legend-dot occupied"></div>
@@ -167,7 +178,7 @@ const ManageTable = () => {
 
                 <div className="table-center">
                   <div className="table-icon">
-                    {table.status === 'occupied' ? '🍽️' : table.status === 'reserved' ? '🔒' : '🟢'}
+                    {table.status === 'occupied' ? '🍽️' : '🟢'}
                   </div>
                   <div className="table-info">
                     <h3>Table #{table.number}</h3>
@@ -185,47 +196,37 @@ const ManageTable = () => {
                   {table.capacity >= 5 && <div className="chair">🪑</div>}
                 </div>
 
+                {/* ✅ Button Logic */}
                 <div className="table-quick-actions">
+                  {/* 🟢 Available Table: Show "Available" button */}
                   {table.status === 'available' && (
                     <button 
-                      className="quick-action-btn reserve"
+                      className="quick-action-btn status-available"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setNewReservation({...newReservation, table: table.id});
-                        setShowReservationModal(true);
+                        handleAvailableClick(table);
                       }}
                     >
-                      Reserve
+                      <Check size={16} />
+                      Available
                     </button>
                   )}
                   
-                  {table.status === 'reserved' && (
-                    <button 
-                      className="quick-action-btn take-order"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleTakeOrder(table);
-                      }}
-                    >
-                      <ShoppingCart size={16} />
-                      Take Order
-                    </button>
-                  )}
-                  
+                  {/* 🔵 Occupied Table: Show "Occupied" + "Bill" buttons */}
                   {table.status === 'occupied' && (
-                    <>
+                    <div className="occupied-actions">
                       <button 
-                        className="quick-action-btn take-order"
+                        className="quick-action-btn status-occupied"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleTakeOrder(table);
+                          handleOccupiedClick(table);
                         }}
                       >
                         <ShoppingCart size={16} />
-                        Take Order
+                        Occupied
                       </button>
                       <button 
-                        className="quick-action-btn generate-bill"
+                        className="quick-action-btn generate-bill-btn"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleGenerateBill(table);
@@ -234,7 +235,7 @@ const ManageTable = () => {
                         <Receipt size={16} />
                         Bill
                       </button>
-                    </>
+                    </div>
                   )}
                 </div>
               </div>
@@ -243,15 +244,15 @@ const ManageTable = () => {
         </div>
       </div>
 
-      {/* Add Reservation Modal */}
-      {showReservationModal && (
-        <div className="modal-overlay" onClick={() => setShowReservationModal(false)}>
+      {/* Guest Count Modal */}
+      {showGuestModal && tempTable && (
+        <div className="modal-overlay" onClick={() => setShowGuestModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Add New Reservation</h2>
+              <h2>👥 Number of Guests - Table #{tempTable.number}</h2>
               <button 
                 className="modal-close-btn"
-                onClick={() => setShowReservationModal(false)}
+                onClick={() => setShowGuestModal(false)}
               >
                 <X size={24} />
               </button>
@@ -259,75 +260,40 @@ const ManageTable = () => {
 
             <div className="modal-body">
               <div className="form-group">
-                <label>Customer Name *</label>
+                <label>How many guests?</label>
                 <input 
-                  type="text"
-                  placeholder="Enter customer name"
-                  value={newReservation.name}
-                  onChange={(e) => setNewReservation({...newReservation, name: e.target.value})}
+                  type="number"
+                  min="1"
+                  max={tempTable.capacity}
+                  value={guestCount}
+                  onChange={(e) => setGuestCount(parseInt(e.target.value) || 1)}
+                  style={{ fontSize: '18px', textAlign: 'center' }}
                 />
-              </div>
-
-              <div className="form-group">
-                <label>Phone Number</label>
-                <input 
-                  type="tel"
-                  placeholder="+84 xxx xxx xxx"
-                  value={newReservation.phone}
-                  onChange={(e) => setNewReservation({...newReservation, phone: e.target.value})}
-                />
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Number of Guests *</label>
-                  <input 
-                    type="number"
-                    min="1"
-                    max="20"
-                    value={newReservation.guests}
-                    onChange={(e) => setNewReservation({...newReservation, guests: parseInt(e.target.value)})}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Table Number *</label>
-                  <select 
-                    value={newReservation.table || ''}
-                    onChange={(e) => setNewReservation({...newReservation, table: parseInt(e.target.value)})}
-                  >
-                    <option value="">Select Table</option>
-                    {tables.filter(t => t.status === 'available').map(table => (
-                      <option key={table.id} value={table.id}>
-                        Table #{table.number} ({table.capacity} seats) - {table.area}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label>Reservation Time *</label>
-                <input 
-                  type="time"
-                  value={newReservation.time}
-                  onChange={(e) => setNewReservation({...newReservation, time: e.target.value})}
-                />
+                <p style={{ 
+                  fontSize: '13px', 
+                  color: '#6B7280', 
+                  marginTop: '8px',
+                  textAlign: 'center'
+                }}>
+                  Table capacity: {tempTable.capacity} guests
+                </p>
               </div>
             </div>
 
             <div className="modal-footer">
               <button 
                 className="btn-cancel"
-                onClick={() => setShowReservationModal(false)}
+                onClick={() => setShowGuestModal(false)}
               >
                 Cancel
               </button>
               <button 
                 className="btn-confirm"
-                onClick={handleAddReservation}
+                onClick={handleConfirmGuests}
+                disabled={guestCount < 1 || guestCount > tempTable.capacity}
               >
-                Add Reservation
+                <Check size={18} />
+                Proceed to Order
               </button>
             </div>
           </div>
@@ -385,7 +351,7 @@ const ManageTable = () => {
         </div>
       )}
 
-      {/* ✅ Take Order Modal (NEW) */}
+      {/* Take Order Modal */}
       {showTakeOrderModal && orderTable && (
         <TakeOrderModal 
           table={orderTable}
