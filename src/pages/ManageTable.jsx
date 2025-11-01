@@ -3,13 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrders } from '../context/OrderContext';
-import { Users, Plus, X, Check, ShoppingCart, Receipt } from 'lucide-react';
+import { Users, Plus, X, Check, ShoppingCart, Receipt, Download, FileText, Clock } from 'lucide-react';
 import TakeOrderModal from '../components/TakeOrderModal';  
 import './ManageTable.css';
 
 const ManageTable = () => {
   const navigate = useNavigate();
-  const { addOrder, completeOrder } = useOrders();
+  const { orders } = useOrders(); // ✅ Get orders from context
   
   const [selectedArea, setSelectedArea] = useState('Main Dining');
   const [selectedTable, setSelectedTable] = useState(null);
@@ -42,17 +42,76 @@ const ManageTable = () => {
   ];
 
   const [tables, setTables] = useState(() => {
-    // ✅ Load from localStorage or use initial data
     const saved = localStorage.getItem('restaurantTables');
     return saved ? JSON.parse(saved) : initialTables;
   });
 
-  // ✅ Save tables to localStorage whenever they change
+  // ✅ Save tables to localStorage
   useEffect(() => {
     localStorage.setItem('restaurantTables', JSON.stringify(tables));
   }, [tables]);
 
   const areas = ['Main Dining', 'Terrace', 'Outdoor'];
+
+  // ✅ Get order for table (active OR last served order)
+  const getTableOrder = (tableNumber) => {
+    // First try to find active (non-served) order
+    const activeOrder = orders.find(order => 
+      order.tableNumber === tableNumber && 
+      order.items && 
+      order.items.length > 0 &&
+      !order.items.every(item => item.status === 'served')
+    );
+    
+    if (activeOrder) return activeOrder;
+    
+    // ✅ If no active order, show last served order (for bill history)
+    const servedOrders = orders.filter(order => 
+      order.tableNumber === tableNumber && 
+      order.items && 
+      order.items.length > 0 &&
+      order.items.every(item => item.status === 'served')
+    );
+    
+    // Return most recent served order
+    if (servedOrders.length > 0) {
+      return servedOrders.sort((a, b) => 
+        new Date(b.createdAt) - new Date(a.createdAt)
+      )[0];
+    }
+    
+    return null;
+  };
+
+  // ✅ Calculate bill details (SAME AS CUSTOMERS.JSX)
+  const calculateBillDetails = (order) => {
+    if (!order || !order.items) {
+      return { subtotal: 0, tax: 0, total: 0 };
+    }
+
+    const subtotal = order.items.reduce((sum, item) => {
+      const price = parseFloat(item.price) || 0;
+      const quantity = parseInt(item.quantity) || 1;
+      return sum + (price * quantity);
+    }, 0);
+    
+    const tax = subtotal * 0.18; // 18% GST
+    const total = subtotal + tax;
+    
+    return { subtotal, tax, total };
+  };
+
+  // Format date
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
 
   // 🟢 Available button → Guest modal
   const handleAvailableClick = (table) => {
@@ -84,18 +143,99 @@ const ManageTable = () => {
     setShowBillModal(true);
   };
 
+  // ✅ Print bill (SAME AS CUSTOMERS.JSX)
+  const handlePrintBill = (order) => {
+    const billDetails = calculateBillDetails(order);
+    
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Bill - Table ${billTable.number}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          .bill-header { text-align: center; margin-bottom: 20px; }
+          .bill-info { margin: 20px 0; }
+          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          th { background-color: #f2f2f2; }
+          .total-row { font-weight: bold; font-size: 18px; }
+        </style>
+      </head>
+      <body>
+        <div class="bill-header">
+          <h1>🍽️ Tasty Station</h1>
+          <p>Invoice: ${order.id}</p>
+        </div>
+        <div class="bill-info">
+          <p><strong>Date:</strong> ${formatDate(order.createdAt)}</p>
+          <p><strong>Table:</strong> ${order.tableNumber}</p>
+          <p><strong>Customer:</strong> ${order.customerName}</p>
+          <p><strong>Waiter:</strong> ${order.waiterName || order.waiter || 'N/A'}</p>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Qty</th>
+              <th>Price</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${order.items.map(item => `
+              <tr>
+                <td>${item.name}</td>
+                <td>${item.quantity}</td>
+                <td>₹${item.price.toFixed(2)}</td>
+                <td>₹${(item.price * item.quantity).toFixed(2)}</td>
+              </tr>
+            `).join('')}
+            <tr>
+              <td colspan="3" align="right"><strong>Subtotal:</strong></td>
+              <td>₹${billDetails.subtotal.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td colspan="3" align="right"><strong>Tax (18%):</strong></td>
+              <td>₹${billDetails.tax.toFixed(2)}</td>
+            </tr>
+            <tr class="total-row">
+              <td colspan="3" align="right"><strong>Total:</strong></td>
+              <td>₹${billDetails.total.toFixed(2)}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="text-align: center; margin-top: 30px;">
+          <p>Thank you for dining with us!</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '', 'height=600,width=800');
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
   // 🟢 Bill Paid → Complete Order → Available
   const handleBillPayment = () => {
     if (billTable) {
-      // ✅ Complete order in context (moves to completed bills)
-      // Find order by table number if you're tracking it
-      // completeOrder(orderId, { method: 'cash', tableNumber: billTable.number });
+      const tableOrder = getTableOrder(billTable.number);
       
-      // ✅ Change table to available
-      changeTableStatus(billTable.id, 'available');
-      alert(`✅ Bill paid for Table #${billTable.number}. Table is now available!`);
-      setShowBillModal(false);
-      setBillTable(null);
+      if (tableOrder && tableOrder.items.length > 0) {
+        const billDetails = calculateBillDetails(tableOrder);
+        
+        // ✅ Change table to available
+        changeTableStatus(billTable.id, 'available');
+        
+        alert(`✅ Bill paid for Table #${billTable.number}\nTotal: ₹${billDetails.total.toFixed(2)}\n\nTable is now available!`);
+        
+        setShowBillModal(false);
+        setBillTable(null);
+      } else {
+        alert('⚠️ No active order found for this table!');
+      }
     }
   };
 
@@ -196,9 +336,7 @@ const ManageTable = () => {
                   {table.capacity >= 5 && <div className="chair">🪑</div>}
                 </div>
 
-                {/* ✅ Button Logic */}
                 <div className="table-quick-actions">
-                  {/* 🟢 Available Table: Show "Available" button */}
                   {table.status === 'available' && (
                     <button 
                       className="quick-action-btn status-available"
@@ -212,7 +350,6 @@ const ManageTable = () => {
                     </button>
                   )}
                   
-                  {/* 🔵 Occupied Table: Show "Occupied" + "Bill" buttons */}
                   {table.status === 'occupied' && (
                     <div className="occupied-actions">
                       <button 
@@ -300,56 +437,137 @@ const ManageTable = () => {
         </div>
       )}
 
-      {/* Bill Modal */}
-      {showBillModal && billTable && (
-        <div className="modal-overlay" onClick={() => setShowBillModal(false)}>
-          <div className="modal-content bill-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>🧾 Bill - Table #{billTable.number}</h2>
-              <button 
-                className="modal-close-btn"
-                onClick={() => setShowBillModal(false)}
-              >
-                <X size={24} />
-              </button>
-            </div>
+      {/* ✅ Bill Modal - COMPLETE IMPLEMENTATION */}
+      {showBillModal && billTable && (() => {
+        const tableOrder = getTableOrder(billTable.number);
+        const billDetails = calculateBillDetails(tableOrder);
+        
+        return (
+          <div className="modal-overlay" onClick={() => setShowBillModal(false)}>
+            <div className="modal-content details-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <div>
+                  <h2>🧾 Invoice - Table #{billTable.number}</h2>
+                  <p>Order details and billing information</p>
+                </div>
+                <button 
+                  className="modal-close-btn"
+                  onClick={() => setShowBillModal(false)}
+                >
+                  <X size={24} />
+                </button>
+              </div>
 
-            <div className="modal-body">
-              <div className="bill-summary">
-                <h3>Order Summary</h3>
-                <div className="bill-item">
-                  <span>Subtotal:</span>
-                  <span>₹850.00</span>
-                </div>
-                <div className="bill-item">
-                  <span>Tax (18%):</span>
-                  <span>₹153.00</span>
-                </div>
-                <div className="bill-item total">
-                  <span><strong>Total:</strong></span>
-                  <span><strong>₹1,003.00</strong></span>
-                </div>
+              <div className="modal-body">
+                {tableOrder && tableOrder.items && tableOrder.items.length > 0 ? (
+                  <>
+                    {/* ✅ Bill Info Section */}
+                    <div className="bill-info-section">
+                      <div className="info-row">
+                        <span className="info-label">Date:</span>
+                        <span className="info-value">{formatDate(tableOrder.createdAt)}</span>
+                      </div>
+                      <div className="info-row">
+                        <span className="info-label">Table:</span>
+                        <span className="info-value">Table {tableOrder.tableNumber}</span>
+                      </div>
+                      <div className="info-row">
+                        <span className="info-label">Customer:</span>
+                        <span className="info-value">{tableOrder.customerName}</span>
+                      </div>
+                      <div className="info-row">
+                        <span className="info-label">Waiter:</span>
+                        <span className="info-value">{tableOrder.waiterName || tableOrder.waiter || 'N/A'}</span>
+                      </div>
+                    </div>
+
+                    {/* ✅ Items Table */}
+                    <div className="bill-items-table">
+                      <h4>Order Items</h4>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th>Price</th>
+                            <th>Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {tableOrder.items.map((item, index) => (
+                            <tr key={index}>
+                              <td>
+                                <div>
+                                  <strong>{item.name}</strong>
+                                  {item.notes && <small className="item-note">📝 {item.notes}</small>}
+                                </div>
+                              </td>
+                              <td>{item.quantity}</td>
+                              <td>₹{item.price.toFixed(2)}</td>
+                              <td>₹{(item.price * item.quantity).toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr>
+                            <td colSpan="3" align="right"><strong>Subtotal:</strong></td>
+                            <td>₹{billDetails.subtotal.toFixed(2)}</td>
+                          </tr>
+                          <tr>
+                            <td colSpan="3" align="right"><strong>Tax (18% GST):</strong></td>
+                            <td>₹{billDetails.tax.toFixed(2)}</td>
+                          </tr>
+                          <tr className="total-row">
+                            <td colSpan="3" align="right"><strong>Total Amount:</strong></td>
+                            <td><strong>₹{billDetails.total.toFixed(2)}</strong></td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ 
+                    textAlign: 'center', 
+                    padding: '60px 20px',
+                    color: '#6B7280'
+                  }}>
+                    <Receipt size={64} style={{ marginBottom: '16px', opacity: 0.3 }} />
+                    <h3>No Active Order</h3>
+                    <p>This table doesn't have any active orders yet</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="modal-footer">
+                <button 
+                  className="btn-secondary" 
+                  onClick={() => setShowBillModal(false)}
+                >
+                  Close
+                </button>
+                {tableOrder && tableOrder.items && tableOrder.items.length > 0 && (
+                  <>
+                    <button 
+                      className="btn-primary"
+                      onClick={() => handlePrintBill(tableOrder)}
+                    >
+                      <Download size={18} />
+                      Print Bill
+                    </button>
+                    <button 
+                      className="btn-confirm"
+                      onClick={handleBillPayment}
+                    >
+                      <Check size={18} />
+                      Mark as Paid
+                    </button>
+                  </>
+                )}
               </div>
             </div>
-
-            <div className="modal-footer">
-              <button 
-                className="btn-cancel"
-                onClick={() => setShowBillModal(false)}
-              >
-                Cancel
-              </button>
-              <button 
-                className="btn-confirm"
-                onClick={handleBillPayment}
-              >
-                <Check size={18} />
-                Mark as Paid
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Take Order Modal */}
       {showTakeOrderModal && orderTable && (

@@ -1,15 +1,15 @@
 // src/pages/OrderLine.jsx
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ChefHat, Clock, AlertCircle, CheckCircle, Bell } from 'lucide-react';
 import './OrderLine.css';
 import { useOrders } from '../context/OrderContext';
 
 const OrderLine = () => {
-  const { orders, updateItemStatus, getItemsByStatus, calculateElapsedTime } = useOrders();
+  const { orders, updateItemStatus, calculateElapsedTime } = useOrders();
 
-  // ✅ Get all items with their status
-  const getAllItems = () => {
+  // ✅ CRITICAL FIX: useMemo ensures UI updates when orders change
+  const getAllItems = useMemo(() => {
     const allItems = [];
     orders.forEach(order => {
       if (order.items && order.items.length > 0) {
@@ -18,21 +18,22 @@ const OrderLine = () => {
             ...item,
             orderId: order.id,
             itemId: `${order.id}-${index}`,
+            itemIndex: index, // ✅ ADD: Store actual index
             tableNumber: order.tableNumber,
-            waiter: order.waiter,
-            customerName: order.customerName,
+            waiter: order.waiterName || order.waiter || 'Not Assigned',
+            customerName: order.customerName || 'Guest',
             createdAt: order.createdAt,
-            status: item.status || 'in-kitchen' // Default status
+            status: item.status || 'in-kitchen'
           });
         });
       }
     });
     return allItems;
-  };
+  }, [orders]); // ✅ Re-calculate when orders change
 
   // ✅ Filter items by status
   const getItemsByStatusLocal = (status) => {
-    return getAllItems().filter(item => item.status === status);
+    return getAllItems.filter(item => item.status === status);
   };
 
   // ✅ Get status count
@@ -40,10 +41,10 @@ const OrderLine = () => {
     return getItemsByStatusLocal(status).length;
   };
 
-  // ✅ Move individual item to next status
-  const moveItem = (itemId, newStatus) => {
-    const [orderId, itemIndex] = itemId.split('-');
-    updateItemStatus(orderId, parseInt(itemIndex), newStatus);
+  // ✅ CRITICAL FIX: Use itemIndex directly
+  const moveItem = (orderId, itemIndex, newStatus) => {
+    console.log('🔄 Moving:', { orderId, itemIndex, newStatus });
+    updateItemStatus(orderId, itemIndex, newStatus);
   };
 
   return (
@@ -59,7 +60,7 @@ const OrderLine = () => {
         <div className="header-stats">
           <div className="stat-badge">
             <Bell size={20} />
-            <span>{getAllItems().length} Active Items</span>
+            <span>{getAllItems.length} Active Items</span>
           </div>
         </div>
       </div>
@@ -87,7 +88,7 @@ const OrderLine = () => {
                 <ItemCard 
                   key={item.itemId} 
                   item={item}
-                  onMove={() => moveItem(item.itemId, 'wait')}
+                  onMove={() => moveItem(item.orderId, item.itemIndex, 'wait')}
                   buttonText="Move to Wait"
                   buttonColor="#F59E0B"
                   calculateElapsedTime={calculateElapsedTime}
@@ -117,7 +118,7 @@ const OrderLine = () => {
                 <ItemCard 
                   key={item.itemId} 
                   item={item}
-                  onMove={() => moveItem(item.itemId, 'ready')}
+                  onMove={() => moveItem(item.orderId, item.itemIndex, 'ready')}
                   buttonText="Mark Ready"
                   buttonColor="#10B981"
                   calculateElapsedTime={calculateElapsedTime}
@@ -147,7 +148,7 @@ const OrderLine = () => {
                 <ItemCard 
                   key={item.itemId} 
                   item={item}
-                  onMove={() => moveItem(item.itemId, 'served')}
+                  onMove={() => moveItem(item.orderId, item.itemIndex, 'served')}
                   buttonText="Mark Served"
                   buttonColor="#6366F1"
                   calculateElapsedTime={calculateElapsedTime}
@@ -190,7 +191,7 @@ const OrderLine = () => {
   );
 };
 
-// ✅ NEW: Individual Item Card Component
+// ✅ Individual Item Card Component
 const ItemCard = ({ item, onMove, buttonText, buttonColor, isServed, calculateElapsedTime }) => {
   return (
     <div className="item-card">
@@ -220,9 +221,7 @@ const ItemCard = ({ item, onMove, buttonText, buttonColor, isServed, calculateEl
       {/* Customer & Waiter Info */}
       <div className="item-card-footer">
         <div className="item-info-row">
-          {item.customerName && (
-            <span className="customer-name-small">👤 {item.customerName}</span>
-          )}
+          <span className="customer-name-small">👤 {item.customerName}</span>
           <span className="waiter-name-small">🍽️ {item.waiter}</span>
         </div>
         
