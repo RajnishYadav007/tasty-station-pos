@@ -1,15 +1,19 @@
-// src/pages/ManageTable/ManageTable.jsx
+// src/pages/ManageTable/ManageTable.jsx - ✅ WITH FULL API INTEGRATION
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrders } from '../context/OrderContext';
+import { useBill } from '../context/BillContext';
+import { usePayment } from '../context/PaymentContext';
 import { Users, Plus, X, Check, ShoppingCart, Receipt, Download, FileText, Clock } from 'lucide-react';
 import TakeOrderModal from '../components/TakeOrderModal';  
 import './ManageTable.css';
 
 const ManageTable = () => {
   const navigate = useNavigate();
-  const { orders } = useOrders(); // ✅ Get orders from context
+  const { orders } = useOrders();
+ const { createBill, markBillAsPaid: markBillAsPaidContext, getRevenue } = useBill();
+const { executePayment: processPaymentTransaction } = usePayment();                                // ✅ NEW
   
   const [selectedArea, setSelectedArea] = useState('Main Dining');
   const [selectedTable, setSelectedTable] = useState(null);
@@ -21,6 +25,7 @@ const ManageTable = () => {
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [guestCount, setGuestCount] = useState(2);
   const [tempTable, setTempTable] = useState(null);
+  const [billLoading, setBillLoading] = useState(false);  // ✅ NEW - For loading state
 
   // ✅ Initial table data
   const initialTables = [
@@ -55,9 +60,8 @@ const ManageTable = () => {
 
   // ✅ Get order for table (active OR last served order)
   const getTableOrder = (tableNumber) => {
-    // First try to find active (non-served) order
     const activeOrder = orders.find(order => 
-      order.tableNumber === tableNumber && 
+      order.table_number === tableNumber && 
       order.items && 
       order.items.length > 0 &&
       !order.items.every(item => item.status === 'served')
@@ -65,25 +69,23 @@ const ManageTable = () => {
     
     if (activeOrder) return activeOrder;
     
-    // ✅ If no active order, show last served order (for bill history)
     const servedOrders = orders.filter(order => 
-      order.tableNumber === tableNumber && 
+      order.table_number === tableNumber && 
       order.items && 
       order.items.length > 0 &&
       order.items.every(item => item.status === 'served')
     );
     
-    // Return most recent served order
     if (servedOrders.length > 0) {
       return servedOrders.sort((a, b) => 
-        new Date(b.createdAt) - new Date(a.createdAt)
+        new Date(b.order_date) - new Date(a.order_date)
       )[0];
     }
     
     return null;
   };
 
-  // ✅ Calculate bill details (SAME AS CUSTOMERS.JSX)
+  // ✅ Calculate bill details
   const calculateBillDetails = (order) => {
     if (!order || !order.items) {
       return { subtotal: 0, tax: 0, total: 0 };
@@ -95,7 +97,7 @@ const ManageTable = () => {
       return sum + (price * quantity);
     }, 0);
     
-    const tax = subtotal * 0.18; // 18% GST
+    const tax = subtotal * 0.18;
     const total = subtotal + tax;
     
     return { subtotal, tax, total };
@@ -131,7 +133,7 @@ const ManageTable = () => {
     }
   };
 
-  // 🔵 Occupied button → TakeOrder modal (add more orders)
+  // 🔵 Occupied button → TakeOrder modal
   const handleOccupiedClick = (table) => {
     setOrderTable(table);
     setShowTakeOrderModal(true);
@@ -143,7 +145,7 @@ const ManageTable = () => {
     setShowBillModal(true);
   };
 
-  // ✅ Print bill (SAME AS CUSTOMERS.JSX)
+  // ✅ Print bill
   const handlePrintBill = (order) => {
     const billDetails = calculateBillDetails(order);
     
@@ -165,13 +167,13 @@ const ManageTable = () => {
       <body>
         <div class="bill-header">
           <h1>🍽️ Tasty Station</h1>
-          <p>Invoice: ${order.id}</p>
+          <p>Invoice: ${order.order_id}</p>
         </div>
         <div class="bill-info">
-          <p><strong>Date:</strong> ${formatDate(order.createdAt)}</p>
-          <p><strong>Table:</strong> ${order.tableNumber}</p>
-          <p><strong>Customer:</strong> ${order.customerName}</p>
-          <p><strong>Waiter:</strong> ${order.waiterName || order.waiter || 'N/A'}</p>
+          <p><strong>Date:</strong> ${formatDate(order.order_date)}</p>
+          <p><strong>Table:</strong> ${order.table_number}</p>
+          <p><strong>Customer:</strong> ${order.customer_name}</p>
+          <p><strong>Waiter:</strong> ${order.waiter_name || 'N/A'}</p>
         </div>
         <table>
           <thead>
@@ -185,7 +187,7 @@ const ManageTable = () => {
           <tbody>
             ${order.items.map(item => `
               <tr>
-                <td>${item.name}</td>
+                <td>${item.dish_name || item.name}</td>
                 <td>${item.quantity}</td>
                 <td>₹${item.price.toFixed(2)}</td>
                 <td>₹${(item.price * item.quantity).toFixed(2)}</td>
@@ -218,24 +220,64 @@ const ManageTable = () => {
     printWindow.print();
   };
 
-  // 🟢 Bill Paid → Complete Order → Available
-  const handleBillPayment = () => {
-    if (billTable) {
-      const tableOrder = getTableOrder(billTable.number);
-      
-      if (tableOrder && tableOrder.items.length > 0) {
-        const billDetails = calculateBillDetails(tableOrder);
-        
-        // ✅ Change table to available
-        changeTableStatus(billTable.id, 'available');
-        
-        alert(`✅ Bill paid for Table #${billTable.number}\nTotal: ₹${billDetails.total.toFixed(2)}\n\nTable is now available!`);
-        
-        setShowBillModal(false);
-        setBillTable(null);
-      } else {
-        alert('⚠️ No active order found for this table!');
-      }
+  // ✅ Handle Bill Payment - WITH API INTEGRATION
+  const handleBillPayment = async () => {
+    if (!billTable) return;
+
+    const tableOrder = getTableOrder(billTable.number);
+    
+    if (!tableOrder || !tableOrder.items || tableOrder.items.length === 0) {
+      alert('⚠️ No active order found for this table!');
+      return;
+    }
+
+    try {
+      setBillLoading(true);
+      const billDetails = calculateBillDetails(tableOrder);
+
+      console.log('💳 Processing payment for Table #' + billTable.number);
+
+      // 1️⃣ Create Bill in Supabase
+      const newBill = await createBill({
+        order_id: tableOrder.order_id,
+        total_amount: billDetails.total,
+        payment_status: 'pending'
+      });
+
+      console.log('✅ Bill created:', newBill.bill_id);
+
+      // 2️⃣ Process Payment
+      const paymentResult = await processPaymentTransaction({
+        bill_id: newBill.bill_id,
+        amount: billDetails.total,
+        payment_method: 'cash'  // Default to cash, can be changed
+      });
+
+      console.log('✅ Payment processed:', paymentResult);
+
+      // 3️⃣ Mark Bill as Paid
+      await markBillAsPaidContext(newBill.bill_id);
+
+      // 4️⃣ Change table to available
+      changeTableStatus(billTable.id, 'available');
+
+      // Success notification
+      alert(
+        `✅ Payment Successful!\n\n` +
+        `Bill #${newBill.bill_id}\n` +
+        `Table #${billTable.number}\n` +
+        `Amount: ₹${billDetails.total.toFixed(2)}\n\n` +
+        `Table is now available!`
+      );
+
+      setShowBillModal(false);
+      setBillTable(null);
+
+    } catch (error) {
+      console.error('❌ Error processing payment:', error);
+      alert(`❌ Payment failed: ${error.message}`);
+    } finally {
+      setBillLoading(false);
     }
   };
 
@@ -437,7 +479,7 @@ const ManageTable = () => {
         </div>
       )}
 
-      {/* ✅ Bill Modal - COMPLETE IMPLEMENTATION */}
+      {/* ✅ Bill Modal - WITH API INTEGRATION */}
       {showBillModal && billTable && (() => {
         const tableOrder = getTableOrder(billTable.number);
         const billDetails = calculateBillDetails(tableOrder);
@@ -461,27 +503,27 @@ const ManageTable = () => {
               <div className="modal-body">
                 {tableOrder && tableOrder.items && tableOrder.items.length > 0 ? (
                   <>
-                    {/* ✅ Bill Info Section */}
+                    {/* Bill Info Section */}
                     <div className="bill-info-section">
                       <div className="info-row">
                         <span className="info-label">Date:</span>
-                        <span className="info-value">{formatDate(tableOrder.createdAt)}</span>
+                        <span className="info-value">{formatDate(tableOrder.order_date)}</span>
                       </div>
                       <div className="info-row">
                         <span className="info-label">Table:</span>
-                        <span className="info-value">Table {tableOrder.tableNumber}</span>
+                        <span className="info-value">Table {tableOrder.table_number}</span>
                       </div>
                       <div className="info-row">
                         <span className="info-label">Customer:</span>
-                        <span className="info-value">{tableOrder.customerName}</span>
+                        <span className="info-value">{tableOrder.customer_name}</span>
                       </div>
                       <div className="info-row">
                         <span className="info-label">Waiter:</span>
-                        <span className="info-value">{tableOrder.waiterName || tableOrder.waiter || 'N/A'}</span>
+                        <span className="info-value">{tableOrder.waiter_name || 'N/A'}</span>
                       </div>
                     </div>
 
-                    {/* ✅ Items Table */}
+                    {/* Items Table */}
                     <div className="bill-items-table">
                       <h4>Order Items</h4>
                       <table>
@@ -498,8 +540,7 @@ const ManageTable = () => {
                             <tr key={index}>
                               <td>
                                 <div>
-                                  <strong>{item.name}</strong>
-                                  {item.notes && <small className="item-note">📝 {item.notes}</small>}
+                                  <strong>{item.dish_name || item.name}</strong>
                                 </div>
                               </td>
                               <td>{item.quantity}</td>
@@ -542,6 +583,7 @@ const ManageTable = () => {
                 <button 
                   className="btn-secondary" 
                   onClick={() => setShowBillModal(false)}
+                  disabled={billLoading}
                 >
                   Close
                 </button>
@@ -550,6 +592,7 @@ const ManageTable = () => {
                     <button 
                       className="btn-primary"
                       onClick={() => handlePrintBill(tableOrder)}
+                      disabled={billLoading}
                     >
                       <Download size={18} />
                       Print Bill
@@ -557,9 +600,16 @@ const ManageTable = () => {
                     <button 
                       className="btn-confirm"
                       onClick={handleBillPayment}
+                      disabled={billLoading}
                     >
-                      <Check size={18} />
-                      Mark as Paid
+                      {billLoading ? (
+                        <>⏳ Processing...</>
+                      ) : (
+                        <>
+                          <Check size={18} />
+                          Mark as Paid
+                        </>
+                      )}
                     </button>
                   </>
                 )}

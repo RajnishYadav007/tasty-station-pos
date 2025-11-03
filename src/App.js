@@ -13,6 +13,8 @@ import OrderLine from './pages/OrderLine';
 import ManageTable from './pages/ManageTable';
 import Menu from './pages/Menu';
 import Customers from './pages/Customers';
+import { BillProvider } from './context/BillContext';      // ✅ NEW
+import { PaymentProvider } from './context/PaymentContext';
 import './App.css';
 
 // Protected Route Component
@@ -79,6 +81,8 @@ function App() {
   return (
     <AuthProvider>
       <OrderProvider>
+          <BillProvider>              {/* ✅ NEW */}
+              <PaymentProvider>         {/* ✅ NEW */}
         <MenuProvider>  {/* ✅ Add this wrapper */}
           <Router>
             <Routes>
@@ -180,6 +184,8 @@ function App() {
             </Routes>
           </Router>
         </MenuProvider>  {/* ✅ Close wrapper */}
+        </PaymentProvider>
+            </BillProvider>
       </OrderProvider>
     </AuthProvider>
   );

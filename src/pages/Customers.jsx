@@ -1,4 +1,4 @@
-// src/pages/Customers/Customers.jsx
+// src/pages/Customers/Customers.jsx - ✅ WITH BILLCONTEXT
 
 import React, { useState, useEffect } from 'react';
 import { 
@@ -15,96 +15,129 @@ import {
   CheckCircle,
   FileText
 } from 'lucide-react';
-import { useOrders } from '../context/OrderContext';
 import './Customers.css';
+import { useBill } from '../context/BillContext';  // ✅ ADD THIS
 
 const Customers = () => {
-  const { orders } = useOrders();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [showBillModal, setShowBillModal] = useState(false);
   const [selectedBill, setSelectedBill] = useState(null);
 
-  // ✅ Get served orders only (bills) - Check if ALL items are served
-  const servedOrders = orders.filter(order => {
-    if (!order.items || order.items.length === 0) return false;
-    return order.items.every(item => item.status === 'served');
+  // ✅ Use BillContext
+  const { bills, orderDetails, loading, loadBills } = useBill();
+  
+  const [stats, setStats] = useState({
+    totalBills: 0,
+    todayBills: 0,
+    totalRevenue: 0,
+    avgBill: 0
   });
 
-  // Today's filter
+  // ✅ Load bills on mount
+  useEffect(() => {
+    console.log('📊 Loading bills from context');
+    loadBills();
+  }, [loadBills]);
+
+  // ✅ Update stats when bills change
+  useEffect(() => {
+    if (bills.length > 0) {
+      const totalRevenue = bills.reduce((sum, bill) => {
+        return sum + (parseFloat(bill.final_amount || bill.total_amount) || 0);
+      }, 0);
+
+     const todaysBills = bills.filter(b => {
   const today = new Date().toDateString();
-  const todayOrders = servedOrders.filter(order => 
-    new Date(order.createdAt).toDateString() === today
-  );
+  const billDate = new Date(b.payment_date).toDateString();
+  return billDate === today;
+});
 
-  // This week filter
-  const oneWeekAgo = new Date();
-  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-  const weekOrders = servedOrders.filter(order => 
-    new Date(order.createdAt) >= oneWeekAgo
-  );
+      const avgBill = bills.length > 0 ? totalRevenue / bills.length : 0;
 
-  // Filter options
-  const filterOptions = [
-    { name: 'All', count: servedOrders.length },
-    { name: 'Today', count: todayOrders.length },
-    { name: 'This Week', count: weekOrders.length }
-  ];
+      setStats({
+        totalBills: bills.length,
+        todayBills: todaysBills.length,
+        totalRevenue: totalRevenue,
+        avgBill: avgBill
+      });
 
-  // ✅ Calculate tax & total from items
-  const calculateBillDetails = (order) => {
-    const subtotal = order.items.reduce((sum, item) => {
+      console.log('✅ Stats updated:', { totalBills: bills.length, totalRevenue });
+    }
+  }, [bills]);
+
+  // ✅ Calculate bill details from order details
+  const calculateBillDetails = (bill) => {
+    const items = orderDetails[bill.order_id] || [];
+    
+    const subtotal = items.reduce((sum, item) => {
       const price = parseFloat(item.price) || 0;
       const quantity = parseInt(item.quantity) || 1;
       return sum + (price * quantity);
     }, 0);
     
-    const tax = subtotal * 0.18; // 18% GST
+    const tax = subtotal * 0.18;
     const total = subtotal + tax;
     
-    return { subtotal, tax, total };
+    return { subtotal, tax, total, items };
   };
 
-  // ✅ Statistics - Calculate from items
-  const stats = {
-    totalBills: servedOrders.length,
-    todayBills: todayOrders.length,
-    totalRevenue: servedOrders.reduce((sum, order) => {
-      const { total } = calculateBillDetails(order);
-      return sum + total;
-    }, 0),
-    avgBill: servedOrders.length > 0 
-      ? servedOrders.reduce((sum, order) => {
-          const { total } = calculateBillDetails(order);
-          return sum + total;
-        }, 0) / servedOrders.length 
-      : 0
-  };
-
-  // Filter orders
-  const getFilteredOrders = () => {
-    let filtered = servedOrders;
+  // ✅ Filter bills
+  const getFilteredBills = () => {
+    let filtered = bills;
 
     if (selectedFilter === 'Today') {
-      filtered = todayOrders;
-    } else if (selectedFilter === 'This Week') {
-      filtered = weekOrders;
-    }
+  const today = new Date().toDateString();
+  filtered = bills.filter(bill => 
+    new Date(bill.payment_date).toDateString() === today
+  );
+
+   } else if (selectedFilter === 'This Week') {
+  const oneWeekAgo = new Date();
+  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+  filtered = bills.filter(bill => 
+    new Date(bill.payment_date) >= oneWeekAgo
+  );
+}
 
     if (searchQuery) {
-      filtered = filtered.filter(order => 
-        order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.tableNumber.toString().includes(searchQuery)
+      filtered = filtered.filter(bill => 
+        bill.bill_id.toString().includes(searchQuery) ||
+        bill.order_id.toString().includes(searchQuery)
       );
     }
 
-    return filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+   return filtered.sort((a, b) => 
+  new Date(b.payment_date) - new Date(a.payment_date)
+);
   };
 
-  const filteredOrders = getFilteredOrders();
+  const filteredBills = getFilteredBills();
 
-  // Format date
+  const today = new Date().toDateString();
+  const oneWeekAgo = new Date();
+  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+  const filterOptions = [
+    { 
+      name: 'All', 
+      count: bills.length 
+    },
+   { 
+  name: 'Today', 
+  count: bills.filter(b => 
+    new Date(b.payment_date).toDateString() === today
+  ).length 
+},
+    { 
+  name: 'This Week', 
+  count: bills.filter(b => 
+    new Date(b.payment_date) >= oneWeekAgo
+  ).length 
+}
+
+  ];
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { 
@@ -116,15 +149,14 @@ const Customers = () => {
     });
   };
 
-  // Print bill
-  const handlePrintBill = (order) => {
-    const billDetails = calculateBillDetails(order);
+  const handlePrintBill = (bill) => {
+    const billDetails = calculateBillDetails(bill);
     
     const printContent = `
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Bill - ${order.id}</title>
+        <title>Bill - ${bill.bill_id}</title>
         <style>
           body { font-family: Arial, sans-serif; padding: 20px; }
           .bill-header { text-align: center; margin-bottom: 20px; }
@@ -138,13 +170,12 @@ const Customers = () => {
       <body>
         <div class="bill-header">
           <h1>🍽️ Tasty Station</h1>
-          <p>Invoice: ${order.id}</p>
+          <p>Invoice: #${bill.bill_id}</p>
         </div>
         <div class="bill-info">
-          <p><strong>Date:</strong> ${formatDate(order.createdAt)}</p>
-          <p><strong>Table:</strong> ${order.tableNumber}</p>
-          <p><strong>Customer:</strong> ${order.customerName}</p>
-          <p><strong>Waiter:</strong> ${order.waiter}</p>
+          <p><strong>Date:</strong> ${formatDate(bill.bill_date || bill.payment_date)}</p>
+          <p><strong>Order ID:</strong> ${bill.order_id}</p>
+          <p><strong>Payment Status:</strong> ${bill.payment_status}</p>
         </div>
         <table>
           <thead>
@@ -156,12 +187,12 @@ const Customers = () => {
             </tr>
           </thead>
           <tbody>
-            ${order.items.map(item => `
+            ${billDetails.items.map(item => `
               <tr>
-                <td>${item.name}</td>
+                <td>Dish #${item.dish_id}</td>
                 <td>${item.quantity}</td>
-                <td>₹${item.price.toFixed(2)}</td>
-                <td>₹${(item.price * item.quantity).toFixed(2)}</td>
+                <td>₹${parseFloat(item.price).toFixed(2)}</td>
+                <td>₹${(parseFloat(item.price) * parseInt(item.quantity)).toFixed(2)}</td>
               </tr>
             `).join('')}
             <tr>
@@ -190,6 +221,16 @@ const Customers = () => {
     printWindow.document.close();
     printWindow.print();
   };
+
+  if (loading) {
+    return (
+      <div className="customers-page">
+        <div style={{ textAlign: 'center', padding: '60px', color: '#666' }}>
+          ⏳ Loading bills...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="customers-page">
@@ -228,7 +269,7 @@ const Customers = () => {
             <DollarSign size={24} style={{ color: '#059669' }} />
           </div>
           <div className="stat-content">
-            <h3>₹{stats.totalRevenue.toLocaleString()}</h3>
+            <h3>₹{Math.round(stats.totalRevenue).toLocaleString()}</h3>
             <p>Total Revenue</p>
           </div>
         </div>
@@ -263,7 +304,7 @@ const Customers = () => {
           <Search size={18} className="search-icon" />
           <input
             type="text"
-            placeholder="Search by order ID, customer name or table..."
+            placeholder="Search by bill ID or order ID..."
             className="search-input"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -273,43 +314,44 @@ const Customers = () => {
 
       {/* Bills Grid */}
       <div className="customers-grid">
-        {filteredOrders.length === 0 ? (
+        {filteredBills.length === 0 ? (
           <div className="no-customers">
             <Receipt size={64} />
             <h3>No bills found</h3>
             <p>Complete orders will appear here once all items are served</p>
           </div>
         ) : (
-          filteredOrders.map(order => {
-            const billDetails = calculateBillDetails(order);
+          filteredBills.map(bill => {
+            const billDetails = calculateBillDetails(bill);
             
             return (
-              <div key={order.id} className="customer-card">
+              <div key={bill.bill_id} className="customer-card">
                 <div className="customer-card-header">
                   <div className="bill-id">
                     <Receipt size={20} />
-                    <span>{order.id}</span>
+                    <span>ORD-{bill.order_id.toString().padStart(6, '0')}</span>
                   </div>
                   <span className="bill-status">
                     <CheckCircle size={16} />
-                    Completed
+                    {bill.payment_status === 'Paid' ? 'Completed' : 'Pending'}
                   </span>
                 </div>
 
                 <div className="customer-info">
-                  <h3>{order.customerName}</h3>
+                  <h3>Guest - Order #{bill.order_id}</h3>
                   <div className="customer-details">
                     <div className="detail-item">
                       <ShoppingBag size={14} />
-                      <span>Table {order.tableNumber}</span>
+                      <span>Bill #{bill.bill_id}</span>
                     </div>
                     <div className="detail-item">
                       <Clock size={14} />
-                      <span>{formatDate(order.createdAt)}</span>
+                      <span>{formatDate(bill.payment_date)}</span>
+
                     </div>
                     <div className="detail-item">
                       <FileText size={14} />
-                      <span>{order.items.length} items</span>
+                      <span>{billDetails.items.length} items</span>
                     </div>
                   </div>
                 </div>
@@ -318,7 +360,7 @@ const Customers = () => {
                   <div className="stat-item">
                     <DollarSign size={16} />
                     <div>
-                      <p className="stat-value">₹{billDetails.total.toFixed(2)}</p>
+                      <p className="stat-value">₹{parseFloat(bill.final_amount || bill.total_amount).toFixed(2)}</p>
                       <p className="stat-label">Total (incl. tax)</p>
                     </div>
                   </div>
@@ -328,7 +370,7 @@ const Customers = () => {
                   <button 
                     className="action-btn view-btn"
                     onClick={() => {
-                      setSelectedBill(order);
+                      setSelectedBill(bill);
                       setShowBillModal(true);
                     }}
                   >
@@ -337,7 +379,7 @@ const Customers = () => {
                   </button>
                   <button 
                     className="action-btn download-btn"
-                    onClick={() => handlePrintBill(order)}
+                    onClick={() => handlePrintBill(bill)}
                   >
                     <Download size={16} />
                     Print
@@ -350,100 +392,96 @@ const Customers = () => {
       </div>
 
       {/* Bill Details Modal */}
-      {showBillModal && selectedBill && (
-        <div className="modal-overlay" onClick={() => setShowBillModal(false)}>
-          <div className="modal-content details-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div>
-                <h2>🧾 Invoice - {selectedBill.id}</h2>
-                <p>Order details and billing information</p>
-              </div>
-              <button className="modal-close-btn" onClick={() => setShowBillModal(false)}>
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="modal-body">
-              {/* Bill Info */}
-              <div className="bill-info-section">
-                <div className="info-row">
-                  <span className="info-label">Date:</span>
-                  <span className="info-value">{formatDate(selectedBill.createdAt)}</span>
+      {showBillModal && selectedBill && (() => {
+        const billDetails = calculateBillDetails(selectedBill);
+        
+        return (
+          <div className="modal-overlay" onClick={() => setShowBillModal(false)}>
+            <div className="modal-content details-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <div>
+                  <h2>🧾 Invoice - #{selectedBill.bill_id}</h2>
+                  <p>Order details and billing information</p>
                 </div>
-                <div className="info-row">
-                  <span className="info-label">Table:</span>
-                  <span className="info-value">Table {selectedBill.tableNumber}</span>
-                </div>
-                <div className="info-row">
-                  <span className="info-label">Customer:</span>
-                  <span className="info-value">{selectedBill.customerName}</span>
-                </div>
-                <div className="info-row">
-                  <span className="info-label">Waiter:</span>
-                  <span className="info-value">{selectedBill.waiter}</span>
-                </div>
+                <button className="modal-close-btn" onClick={() => setShowBillModal(false)}>
+                  <X size={24} />
+                </button>
               </div>
 
-              {/* Items Table */}
-              <div className="bill-items-table">
-                <h4>Order Items</h4>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Item</th>
-                      <th>Qty</th>
-                      <th>Price</th>
-                      <th>Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedBill.items.map((item, index) => (
-                      <tr key={index}>
-                        <td>
-                          <div>
-                            <strong>{item.name}</strong>
-                            {item.notes && <small className="item-note">📝 {item.notes}</small>}
-                          </div>
-                        </td>
-                        <td>{item.quantity}</td>
-                        <td>₹{item.price.toFixed(2)}</td>
-                        <td>₹{(item.price * item.quantity).toFixed(2)}</td>
+              <div className="modal-body">
+                <div className="bill-info-section">
+                  <div className="info-row">
+                    <span className="info-label">Date:</span>
+                    <span className="info-value">{formatDate(selectedBill.payment_date)}</span>
+
+                  </div>
+                  <div className="info-row">
+                    <span className="info-label">Order ID:</span>
+                    <span className="info-value">#{selectedBill.order_id}</span>
+                  </div>
+                  <div className="info-row">
+                    <span className="info-label">Payment Status:</span>
+                    <span className="info-value">{selectedBill.payment_status}</span>
+                  </div>
+                </div>
+
+                <div className="bill-items-table">
+                  <h4>Order Items</h4>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Item</th>
+                        <th>Qty</th>
+                        <th>Price</th>
+                        <th>Total</th>
                       </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td colSpan="3" align="right"><strong>Subtotal:</strong></td>
-                      <td>₹{calculateBillDetails(selectedBill).subtotal.toFixed(2)}</td>
-                    </tr>
-                    <tr>
-                      <td colSpan="3" align="right"><strong>Tax (18% GST):</strong></td>
-                      <td>₹{calculateBillDetails(selectedBill).tax.toFixed(2)}</td>
-                    </tr>
-                    <tr className="total-row">
-                      <td colSpan="3" align="right"><strong>Total Amount:</strong></td>
-                      <td><strong>₹{calculateBillDetails(selectedBill).total.toFixed(2)}</strong></td>
-                    </tr>
-                  </tfoot>
-                </table>
+                    </thead>
+                    <tbody>
+                      {billDetails.items.map((item, index) => (
+                        <tr key={index}>
+                          <td>
+                            <strong>Dish #{item.dish_id}</strong>
+                          </td>
+                          <td>{item.quantity}</td>
+                          <td>₹{parseFloat(item.price).toFixed(2)}</td>
+                          <td>₹{(parseFloat(item.price) * parseInt(item.quantity)).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td colSpan="3" align="right"><strong>Subtotal:</strong></td>
+                        <td>₹{billDetails.subtotal.toFixed(2)}</td>
+                      </tr>
+                      <tr>
+                        <td colSpan="3" align="right"><strong>Tax (18% GST):</strong></td>
+                        <td>₹{billDetails.tax.toFixed(2)}</td>
+                      </tr>
+                      <tr className="total-row">
+                        <td colSpan="3" align="right"><strong>Total Amount:</strong></td>
+                        <td><strong>₹{billDetails.total.toFixed(2)}</strong></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
               </div>
-            </div>
 
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setShowBillModal(false)}>
-                Close
-              </button>
-              <button 
-                className="btn-primary"
-                onClick={() => handlePrintBill(selectedBill)}
-              >
-                <Download size={18} />
-                Print Bill
-              </button>
+              <div className="modal-footer">
+                <button className="btn-secondary" onClick={() => setShowBillModal(false)}>
+                  Close
+                </button>
+                <button 
+                  className="btn-primary"
+                  onClick={() => handlePrintBill(selectedBill)}
+                >
+                  <Download size={18} />
+                  Print Bill
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };

@@ -1,14 +1,16 @@
-// src/pages/OrderLine.jsx
-
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ChefHat, Clock, AlertCircle, CheckCircle, Bell } from 'lucide-react';
 import './OrderLine.css';
 import { useOrders } from '../context/OrderContext';
+import { useBill } from '../context/BillContext';  // ✅ ADD THIS
+
 
 const OrderLine = () => {
   const { orders, updateItemStatus, calculateElapsedTime } = useOrders();
+  const { createBill } = useBill();  // ✅ ADD THIS
+  const [loadingItemId, setLoadingItemId] = useState(null);
 
-  // ✅ CRITICAL FIX: useMemo ensures UI updates when orders change
+
   const getAllItems = useMemo(() => {
     const allItems = [];
     orders.forEach(order => {
@@ -18,7 +20,7 @@ const OrderLine = () => {
             ...item,
             orderId: order.id,
             itemId: `${order.id}-${index}`,
-            itemIndex: index, // ✅ ADD: Store actual index
+            itemIndex: index,
             tableNumber: order.tableNumber,
             waiter: order.waiterName || order.waiter || 'Not Assigned',
             customerName: order.customerName || 'Guest',
@@ -29,23 +31,75 @@ const OrderLine = () => {
       }
     });
     return allItems;
-  }, [orders]); // ✅ Re-calculate when orders change
+  }, [orders]);
 
-  // ✅ Filter items by status
+
   const getItemsByStatusLocal = (status) => {
     return getAllItems.filter(item => item.status === status);
   };
 
-  // ✅ Get status count
+
   const getStatusCount = (status) => {
     return getItemsByStatusLocal(status).length;
   };
 
-  // ✅ CRITICAL FIX: Use itemIndex directly
-  const moveItem = (orderId, itemIndex, newStatus) => {
+
+  // ✅ COMPLETE HANDLER WITH AUTO BILL
+  const moveItem = async (orderId, itemIndex, newStatus) => {
+  const itemId = `${orderId}-${itemIndex}`;
+  try {
+    setLoadingItemId(itemId);
     console.log('🔄 Moving:', { orderId, itemIndex, newStatus });
-    updateItemStatus(orderId, itemIndex, newStatus);
-  };
+    
+    await updateItemStatus(orderId, itemIndex, newStatus);
+    console.log('✅ Item status updated');
+
+    // ✅ AUTO BILL ON SERVED
+    if (newStatus === 'served') {
+      console.log('🧾 Creating bill automatically...');
+      
+      const order = orders.find(o => o.id === orderId || o.order_id === orderId);
+      
+      if (order && order.items && order.items.length > 0) {
+        const billAmount = order.items.reduce((sum, item) => {
+          return sum + (parseFloat(item.price) * parseInt(item.quantity));
+        }, 0);
+        
+        const tax = billAmount * 0.18;
+        
+        try {
+          const billData = {
+            order_id: order.order_id || order.id,
+            user_id: 1,
+            total_amount: billAmount,
+            discount_amount: 0,
+            tax_amount: tax,
+            final_amount: billAmount + tax,
+            payment_method: 'Cash',
+            payment_status: 'Pending',
+            payment_date: new Date().toISOString()  // ✅ FIXED
+          };
+          
+          const newBill = await createBill(billData);
+          console.log('✅ Bill created successfully:', newBill.bill_id);
+          alert(`✅ Item served!\n✅ Bill #${newBill.bill_id} created`);
+          
+        } catch (billError) {
+          console.error('⚠️ Bill creation error (but item updated):', billError);
+          alert('✅ Item served!\n⚠️ Bill error: ' + billError.message);
+        }
+      }
+    }
+    
+  } catch (error) {
+    console.error('❌ Error moving item:', error);
+    alert('Failed to update item status: ' + error.message);
+  } finally {
+    setLoadingItemId(null);
+  }
+};
+
+
 
   return (
     <div className="orderline-page">
@@ -91,6 +145,7 @@ const OrderLine = () => {
                   onMove={() => moveItem(item.orderId, item.itemIndex, 'wait')}
                   buttonText="Move to Wait"
                   buttonColor="#F59E0B"
+                  isLoading={loadingItemId === `${item.orderId}-${item.itemIndex}`}
                   calculateElapsedTime={calculateElapsedTime}
                 />
               ))
@@ -121,6 +176,7 @@ const OrderLine = () => {
                   onMove={() => moveItem(item.orderId, item.itemIndex, 'ready')}
                   buttonText="Mark Ready"
                   buttonColor="#10B981"
+                  isLoading={loadingItemId === `${item.orderId}-${item.itemIndex}`}
                   calculateElapsedTime={calculateElapsedTime}
                 />
               ))
@@ -151,6 +207,7 @@ const OrderLine = () => {
                   onMove={() => moveItem(item.orderId, item.itemIndex, 'served')}
                   buttonText="Mark Served"
                   buttonColor="#6366F1"
+                  isLoading={loadingItemId === `${item.orderId}-${item.itemIndex}`}
                   calculateElapsedTime={calculateElapsedTime}
                 />
               ))
@@ -191,8 +248,16 @@ const OrderLine = () => {
   );
 };
 
-// ✅ Individual Item Card Component
-const ItemCard = ({ item, onMove, buttonText, buttonColor, isServed, calculateElapsedTime }) => {
+// ✅ Individual Item Card Component - WITH LOADING STATE
+const ItemCard = ({ 
+  item, 
+  onMove, 
+  buttonText, 
+  buttonColor, 
+  isServed, 
+  isLoading,
+  calculateElapsedTime 
+}) => {
   return (
     <div className="item-card">
       <div className="item-card-header">
@@ -228,10 +293,19 @@ const ItemCard = ({ item, onMove, buttonText, buttonColor, isServed, calculateEl
         {!isServed && (
           <button 
             className="move-btn-item"
-            style={{ backgroundColor: buttonColor }}
+            style={{ 
+              backgroundColor: buttonColor,
+              opacity: isLoading ? 0.6 : 1,
+              cursor: isLoading ? 'not-allowed' : 'pointer'
+            }}
             onClick={onMove}
+            disabled={isLoading}
           >
-            {buttonText}
+            {isLoading ? (
+              <>⏳ Updating...</>
+            ) : (
+              buttonText
+            )}
           </button>
         )}
       </div>
