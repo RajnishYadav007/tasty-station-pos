@@ -1,15 +1,16 @@
+// src/pages/OrderLine/OrderLine.jsx - ✅ WITH TOASTIFY
+
 import React, { useMemo, useState } from 'react';
+import { toast } from 'react-toastify';  // ✅ IMPORT TOAST
 import { ChefHat, Clock, AlertCircle, CheckCircle, Bell } from 'lucide-react';
 import './OrderLine.css';
 import { useOrders } from '../context/OrderContext';
-import { useBill } from '../context/BillContext';  // ✅ ADD THIS
-
+import { useBill } from '../context/BillContext';
 
 const OrderLine = () => {
   const { orders, updateItemStatus, calculateElapsedTime } = useOrders();
-  const { createBill } = useBill();  // ✅ ADD THIS
+  const { createBill } = useBill();
   const [loadingItemId, setLoadingItemId] = useState(null);
-
 
   const getAllItems = useMemo(() => {
     const allItems = [];
@@ -33,73 +34,89 @@ const OrderLine = () => {
     return allItems;
   }, [orders]);
 
-
   const getItemsByStatusLocal = (status) => {
     return getAllItems.filter(item => item.status === status);
   };
-
 
   const getStatusCount = (status) => {
     return getItemsByStatusLocal(status).length;
   };
 
-
-  // ✅ COMPLETE HANDLER WITH AUTO BILL
+  // ✅ COMPLETE HANDLER WITH AUTO BILL + TOAST
   const moveItem = async (orderId, itemIndex, newStatus) => {
-  const itemId = `${orderId}-${itemIndex}`;
-  try {
-    setLoadingItemId(itemId);
-    console.log('🔄 Moving:', { orderId, itemIndex, newStatus });
-    
-    await updateItemStatus(orderId, itemIndex, newStatus);
-    console.log('✅ Item status updated');
+    const itemId = `${orderId}-${itemIndex}`;
+    try {
+      setLoadingItemId(itemId);
+      console.log('🔄 Moving:', { orderId, itemIndex, newStatus });
+      
+      await updateItemStatus(orderId, itemIndex, newStatus);
+      console.log(' Item status updated');
 
-    // ✅ AUTO BILL ON SERVED
-    if (newStatus === 'served') {
-      console.log('🧾 Creating bill automatically...');
-      
-      const order = orders.find(o => o.id === orderId || o.order_id === orderId);
-      
-      if (order && order.items && order.items.length > 0) {
-        const billAmount = order.items.reduce((sum, item) => {
-          return sum + (parseFloat(item.price) * parseInt(item.quantity));
-        }, 0);
+      // ✅ SUCCESS TOAST
+      toast.success(` ${newStatus.replace('-', ' ')} `, {
+        position: 'top-right',
+        autoClose: 2000,
+      });
+
+      // ✅ AUTO BILL ON SERVED
+      if (newStatus === 'served') {
+        console.log('🧾 Creating bill automatically...');
         
-        const tax = billAmount * 0.18;
+        const order = orders.find(o => o.id === orderId || o.order_id === orderId);
         
-        try {
-          const billData = {
-            order_id: order.order_id || order.id,
-            user_id: 1,
-            total_amount: billAmount,
-            discount_amount: 0,
-            tax_amount: tax,
-            final_amount: billAmount + tax,
-            payment_method: 'Cash',
-            payment_status: 'Pending',
-            payment_date: new Date().toISOString()  // ✅ FIXED
-          };
+        if (order && order.items && order.items.length > 0) {
+          const billAmount = order.items.reduce((sum, item) => {
+            return sum + (parseFloat(item.price) * parseInt(item.quantity));
+          }, 0);
           
-          const newBill = await createBill(billData);
-          console.log('✅ Bill created successfully:', newBill.bill_id);
-          alert(`✅ Item served!\n✅ Bill #${newBill.bill_id} created`);
+          const tax = billAmount * 0.18;
           
-        } catch (billError) {
-          console.error('⚠️ Bill creation error (but item updated):', billError);
-          alert('✅ Item served!\n⚠️ Bill error: ' + billError.message);
+          try {
+            const billData = {
+              order_id: order.order_id || order.id,
+              user_id: 1,
+              total_amount: billAmount,
+              discount_amount: 0,
+              tax_amount: tax,
+              final_amount: billAmount + tax,
+              payment_method: 'Cash',
+              payment_status: 'Pending',
+              payment_date: new Date().toISOString()
+            };
+            
+            const newBill = await createBill(billData);
+            console.log('✅ Bill created successfully:', newBill.bill_id);
+
+            // ✅ SUCCESS TOAST
+            toast.success(`🧾 Bill #${newBill.bill_id} created!`, {
+              position: 'bottom-right',
+              autoClose: 3000,
+            });
+            
+          } catch (billError) {
+            console.error('⚠️ Bill creation error:', billError);
+            
+            // ✅ WARNING TOAST
+            toast.warning('⚠️ Bill creation error.', {
+              position: 'bottom-right',
+              autoClose: 3000,
+            });
+          }
         }
       }
+      
+    } catch (error) {
+      console.error('❌ Error moving item:', error);
+      
+      // ✅ ERROR TOAST
+      toast.error('❌ Error moving item:', {
+        position: 'top-right',
+        autoClose: 3000,
+      });
+    } finally {
+      setLoadingItemId(null);
     }
-    
-  } catch (error) {
-    console.error('❌ Error moving item:', error);
-    alert('Failed to update item status: ' + error.message);
-  } finally {
-    setLoadingItemId(null);
-  }
-};
-
-
+  };
 
   return (
     <div className="orderline-page">
@@ -242,13 +259,12 @@ const OrderLine = () => {
             )}
           </div>
         </div>
-
       </div>
     </div>
   );
 };
 
-// ✅ Individual Item Card Component - WITH LOADING STATE
+// ✅ Individual Item Card Component
 const ItemCard = ({ 
   item, 
   onMove, 
@@ -269,7 +285,6 @@ const ItemCard = ({
         </div>
       </div>
 
-      {/* Item Details */}
       <div className="item-card-body">
         <div className="item-quantity-name">
           <span className="item-qty-large">{item.quantity}x</span>
@@ -283,7 +298,6 @@ const ItemCard = ({
         )}
       </div>
 
-      {/* Customer & Waiter Info */}
       <div className="item-card-footer">
         <div className="item-info-row">
           <span className="customer-name-small">👤 {item.customerName}</span>

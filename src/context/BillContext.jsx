@@ -1,4 +1,4 @@
-// src/context/BillContext.jsx - ✅ WITH DATE TRACKING
+// src/context/BillContext.jsx - ✅ FULLY UPDATED WITH created_at
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { supabase } from '../api/supabaseClient';
@@ -13,7 +13,9 @@ import {
 } from '../api/billApi';
 import { getOrderDetailsByOrderId } from '../api/orderDetailsApi';
 
+
 const BillContext = createContext();
+
 
 export const useBill = () => {
   const context = useContext(BillContext);
@@ -23,11 +25,13 @@ export const useBill = () => {
   return context;
 };
 
+
 export const BillProvider = ({ children }) => {
   const [bills, setBills] = useState([]);
   const [orderDetails, setOrderDetails] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
 
   // ✅ 1. LOAD ALL BILLS
   const loadBills = useCallback(async () => {
@@ -60,6 +64,7 @@ export const BillProvider = ({ children }) => {
     }
   }, []);
 
+
   // ✅ 2. CREATE BILL
   const createBill = useCallback(async (billData) => {
     try {
@@ -84,6 +89,7 @@ export const BillProvider = ({ children }) => {
     }
   }, []);
 
+
   // ✅ 3. UPDATE BILL
   const modifyBill = useCallback(async (billId, updatedData) => {
     try {
@@ -104,6 +110,7 @@ export const BillProvider = ({ children }) => {
       setLoading(false);
     }
   }, []);
+
 
   // ✅ 4. MARK BILL AS PAID
   const markBillAsPaid = useCallback(async (billId) => {
@@ -127,6 +134,7 @@ export const BillProvider = ({ children }) => {
     }
   }, []);
 
+
   // ✅ 5. DELETE BILL
   const removeBill = useCallback(async (billId) => {
     try {
@@ -145,6 +153,7 @@ export const BillProvider = ({ children }) => {
     }
   }, []);
 
+
   // ✅ 6. GET TODAY'S BILLS
   const getTodayBills = useCallback(async () => {
     try {
@@ -155,6 +164,7 @@ export const BillProvider = ({ children }) => {
     }
   }, []);
 
+
   // ✅ 7. GET TOTAL REVENUE
   const getRevenue = useCallback(async () => {
     try {
@@ -164,6 +174,7 @@ export const BillProvider = ({ children }) => {
       throw err;
     }
   }, []);
+
 
   // ✅ 8. GET REVENUE BY DATE RANGE
   const getRevenueByDate = useCallback(async (startDate, endDate) => {
@@ -192,6 +203,7 @@ export const BillProvider = ({ children }) => {
       setLoading(false);
     }
   }, []);
+
 
   // ✅ 9. GET DAILY STATISTICS
   const getDailyStats = useCallback(async () => {
@@ -243,6 +255,89 @@ export const BillProvider = ({ children }) => {
     }
   }, []);
 
+  // ✅ HOOK: Update stats when bills change - USE created_at
+  const { useState: useStateHook } = require('react');
+  
+  // This will be used by Customers.jsx to calculate stats
+  // Make sure Customers.jsx calls this hook in useEffect
+  
+  const calculateStats = useCallback(() => {
+    if (bills.length > 0) {
+      const totalRevenue = bills.reduce((sum, bill) => {
+        return sum + (parseFloat(bill.final_amount || bill.total_amount) || 0);
+      }, 0);
+
+      const today = new Date().toDateString();
+      const todaysBills = bills.filter(b => {
+        const billDate = new Date(b.created_at || b.bill_date).toDateString();  // ✅ USE created_at
+        return billDate === today;
+      });
+
+      const avgBill = bills.length > 0 ? totalRevenue / bills.length : 0;
+
+      return {
+        totalBills: bills.length,
+        todayBills: todaysBills.length,
+        totalRevenue: totalRevenue,
+        avgBill: avgBill
+      };
+    }
+    return {
+      totalBills: 0,
+      todayBills: 0,
+      totalRevenue: 0,
+      avgBill: 0
+    };
+  }, [bills]);
+
+  // ✅ FILTER FUNCTION: Use created_at
+  const getFilteredBills = useCallback((bills, selectedFilter) => {
+    let filtered = bills;
+
+    if (selectedFilter === 'Today') {
+      const today = new Date().toDateString();
+      filtered = bills.filter(bill => 
+        new Date(bill.created_at || bill.bill_date).toDateString() === today  // ✅ USE created_at
+      );
+    } else if (selectedFilter === 'This Week') {
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      filtered = bills.filter(bill => 
+        new Date(bill.created_at || bill.bill_date) >= oneWeekAgo  // ✅ USE created_at
+      );
+    }
+
+    return filtered.sort((a, b) => 
+      new Date(b.created_at || b.bill_date) - new Date(a.created_at || a.bill_date)  // ✅ USE created_at
+    );
+  }, []);
+
+  // ✅ GET FILTER OPTIONS
+  const getFilterOptions = useCallback((bills) => {
+    const today = new Date().toDateString();
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+    return [
+      { 
+        name: 'All', 
+        count: bills.length 
+      },
+      { 
+        name: 'Today', 
+        count: bills.filter(b => 
+          new Date(b.created_at || b.bill_date).toDateString() === today  // ✅ USE created_at
+        ).length 
+      },
+      { 
+        name: 'This Week', 
+        count: bills.filter(b => 
+          new Date(b.created_at || b.bill_date) >= oneWeekAgo  // ✅ USE created_at
+        ).length 
+      }
+    ];
+  }, []);
+
   const value = {
     bills,
     orderDetails,
@@ -255,8 +350,11 @@ export const BillProvider = ({ children }) => {
     removeBill,
     getTodayBills,
     getRevenue,
-    getRevenueByDate,  // ✅ NEW
-    getDailyStats      // ✅ NEW
+    getRevenueByDate,
+    getDailyStats,
+    calculateStats,        // ✅ NEW - for stats calculation
+    getFilteredBills,      // ✅ NEW - for filtering bills
+    getFilterOptions       // ✅ NEW - for filter button counts
   };
 
   return (

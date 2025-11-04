@@ -118,9 +118,7 @@ export async function addBill(billData) {
       order_id: billData.order_id,
       user_id: billData.user_id || 1,
       total_amount: billData.total_amount,
-      discount_amount: billData.discount_amount || 0,
       tax_amount: billData.tax_amount || 0,
-      final_amount: billData.final_amount,
       payment_method: billData.payment_method || 'Cash',
       payment_status: billData.payment_status || 'Pending',
       bill_date: billData.bill_date || new Date().toISOString()

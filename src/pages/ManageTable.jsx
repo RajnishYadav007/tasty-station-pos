@@ -1,33 +1,33 @@
-// src/pages/ManageTable/ManageTable.jsx - ✅ WITH FULL API INTEGRATION
+// src/pages/ManageTable/ManageTable.jsx - ✅ COMPLETE & FIXED
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import { useOrders } from '../context/OrderContext';
 import { useBill } from '../context/BillContext';
 import { usePayment } from '../context/PaymentContext';
-import { Users, Plus, X, Check, ShoppingCart, Receipt, Download, FileText, Clock } from 'lucide-react';
-import TakeOrderModal from '../components/TakeOrderModal';  
+import { Users, X, Check, ShoppingCart, Receipt, Download } from 'lucide-react';
+import { getBillsByOrderId } from '../api/billApi';
+import TakeOrderModal from '../components/TakeOrderModal';
 import './ManageTable.css';
 
 const ManageTable = () => {
   const navigate = useNavigate();
   const { orders } = useOrders();
- const { createBill, markBillAsPaid: markBillAsPaidContext, getRevenue } = useBill();
-const { executePayment: processPaymentTransaction } = usePayment();                                // ✅ NEW
+  const { createBill, markBillAsPaid: markBillAsPaidContext, getRevenue } = useBill();
+  const { executePayment: processPaymentTransaction } = usePayment();
   
   const [selectedArea, setSelectedArea] = useState('Main Dining');
   const [selectedTable, setSelectedTable] = useState(null);
-  const [showReservationModal, setShowReservationModal] = useState(false);
   const [showBillModal, setShowBillModal] = useState(false);
   const [billTable, setBillTable] = useState(null);
-  const [showTakeOrderModal, setShowTakeOrderModal] = useState(false);  
-  const [orderTable, setOrderTable] = useState(null);  
+  const [showTakeOrderModal, setShowTakeOrderModal] = useState(false);
+  const [orderTable, setOrderTable] = useState(null);
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [guestCount, setGuestCount] = useState(2);
   const [tempTable, setTempTable] = useState(null);
-  const [billLoading, setBillLoading] = useState(false);  // ✅ NEW - For loading state
+  const [billLoading, setBillLoading] = useState(false);
 
-  // ✅ Initial table data
   const initialTables = [
     { id: 1, number: 1, capacity: 6, status: 'available', area: 'Main Dining' },
     { id: 2, number: 2, capacity: 2, status: 'available', area: 'Main Dining' },
@@ -51,41 +51,72 @@ const { executePayment: processPaymentTransaction } = usePayment();             
     return saved ? JSON.parse(saved) : initialTables;
   });
 
-  // ✅ Save tables to localStorage
   useEffect(() => {
     localStorage.setItem('restaurantTables', JSON.stringify(tables));
   }, [tables]);
 
+  // ✅ DEBUG: Monitor orders
+  useEffect(() => {
+    console.log('🔄 ORDERS UPDATED:', orders);
+    if (orders && orders.length > 0) {
+      console.log('✅ TOTAL ORDERS:', orders.length);
+      orders.forEach(order => {
+        console.log(`📝 Order ID: ${order.order_id}, Table: ${order.table_number}, Items: ${order.items?.length || 0}`);
+      });
+    } else {
+      console.log('⚠️ NO ORDERS DATA!');
+    }
+  }, [orders]);
+
   const areas = ['Main Dining', 'Terrace', 'Outdoor'];
 
-  // ✅ Get order for table (active OR last served order)
+  // ✅ FIXED: Get order for table (INCLUDES SERVED ORDERS)
   const getTableOrder = (tableNumber) => {
-    const activeOrder = orders.find(order => 
+    if (!orders || orders.length === 0) {
+      console.log('❌ No orders found');
+      return null;
+    }
+
+    // 1️⃣ Filter all orders for this table
+    const allOrders = orders.filter(order => 
       order.table_number === tableNumber && 
       order.items && 
-      order.items.length > 0 &&
+      order.items.length > 0
+    );
+    
+    console.log(`📊 Table ${tableNumber} - Found ${allOrders.length} orders`);
+    
+    if (allOrders.length === 0) {
+      return null;
+    }
+    
+    // 2️⃣ First: Check for active orders (not all served)
+    const activeOrder = allOrders.find(order => 
       !order.items.every(item => item.status === 'served')
     );
     
-    if (activeOrder) return activeOrder;
+    if (activeOrder) {
+      console.log('✅ Active order found:', activeOrder.order_id);
+      return activeOrder;
+    }
     
-    const servedOrders = orders.filter(order => 
-      order.table_number === tableNumber && 
-      order.items && 
-      order.items.length > 0 &&
+    // 3️⃣ Second: Check for served orders (all items served)
+    const servedOrders = allOrders.filter(order => 
       order.items.every(item => item.status === 'served')
     );
     
     if (servedOrders.length > 0) {
-      return servedOrders.sort((a, b) => 
+      const latestServed = servedOrders.sort((a, b) => 
         new Date(b.order_date) - new Date(a.order_date)
       )[0];
+      console.log('✅ Served order found:', latestServed.order_id);
+      return latestServed;
     }
     
+    console.log('⚠️ No order found for table', tableNumber);
     return null;
   };
 
-  // ✅ Calculate bill details
   const calculateBillDetails = (order) => {
     if (!order || !order.items) {
       return { subtotal: 0, tax: 0, total: 0 };
@@ -103,26 +134,31 @@ const { executePayment: processPaymentTransaction } = usePayment();             
     return { subtotal, tax, total };
   };
 
-  // Format date
   const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Invalid Date';
+      
+      return date.toLocaleDateString('en-IN', { 
+        year: 'numeric',
+        month: 'short', 
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+    } catch (err) {
+      return 'Invalid Date';
+    }
   };
 
-  // 🟢 Available button → Guest modal
   const handleAvailableClick = (table) => {
     setTempTable(table);
     setGuestCount(2);
     setShowGuestModal(true);
   };
 
-  // 🟢 Confirm guests → Occupied → TakeOrder
   const handleConfirmGuests = () => {
     if (tempTable && guestCount > 0) {
       changeTableStatus(tempTable.id, 'occupied');
@@ -130,104 +166,143 @@ const { executePayment: processPaymentTransaction } = usePayment();             
       setShowGuestModal(false);
       setShowTakeOrderModal(true);
       setTempTable(null);
+      
+      toast.success(`✅ Table #${tempTable.number} occupied with ${guestCount} guests!`, {
+        position: 'top-right',
+        autoClose: 2000,
+      });
     }
   };
 
-  // 🔵 Occupied button → TakeOrder modal
   const handleOccupiedClick = (table) => {
     setOrderTable(table);
     setShowTakeOrderModal(true);
+    
+    toast.info(`📝 Taking order for Table #${table.number}`, {
+      position: 'bottom-left',
+      autoClose: 1500,
+    });
   };
 
-  // 🟠 Bill button → Bill modal
   const handleGenerateBill = (table) => {
+    console.log('📊 BILL GENERATION START - Table:', table.number);
+    console.log('🔍 Current Orders:', orders);
+    
+    const tableOrder = getTableOrder(table.number);
+    
+    if (!tableOrder) {
+      console.log('❌ No order found!');
+      toast.error(`⚠️ No orders for Table #${table.number}. Place order first!`, {
+        position: 'top-right',
+        autoClose: 3000,
+      });
+      return;
+    }
+    
+    console.log('✅ Order found:', tableOrder);
     setBillTable(table);
     setShowBillModal(true);
-  };
-
-  // ✅ Print bill
-  const handlePrintBill = (order) => {
-    const billDetails = calculateBillDetails(order);
     
-    const printContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Bill - Table ${billTable.number}</title>
-        <style>
-          body { font-family: Arial, sans-serif; padding: 20px; }
-          .bill-header { text-align: center; margin-bottom: 20px; }
-          .bill-info { margin: 20px 0; }
-          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-          th { background-color: #f2f2f2; }
-          .total-row { font-weight: bold; font-size: 18px; }
-        </style>
-      </head>
-      <body>
-        <div class="bill-header">
-          <h1>🍽️ Tasty Station</h1>
-          <p>Invoice: ${order.order_id}</p>
-        </div>
-        <div class="bill-info">
-          <p><strong>Date:</strong> ${formatDate(order.order_date)}</p>
-          <p><strong>Table:</strong> ${order.table_number}</p>
-          <p><strong>Customer:</strong> ${order.customer_name}</p>
-          <p><strong>Waiter:</strong> ${order.waiter_name || 'N/A'}</p>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Qty</th>
-              <th>Price</th>
-              <th>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${order.items.map(item => `
-              <tr>
-                <td>${item.dish_name || item.name}</td>
-                <td>${item.quantity}</td>
-                <td>₹${item.price.toFixed(2)}</td>
-                <td>₹${(item.price * item.quantity).toFixed(2)}</td>
-              </tr>
-            `).join('')}
-            <tr>
-              <td colspan="3" align="right"><strong>Subtotal:</strong></td>
-              <td>₹${billDetails.subtotal.toFixed(2)}</td>
-            </tr>
-            <tr>
-              <td colspan="3" align="right"><strong>Tax (18%):</strong></td>
-              <td>₹${billDetails.tax.toFixed(2)}</td>
-            </tr>
-            <tr class="total-row">
-              <td colspan="3" align="right"><strong>Total:</strong></td>
-              <td>₹${billDetails.total.toFixed(2)}</td>
-            </tr>
-          </tbody>
-        </table>
-        <div style="text-align: center; margin-top: 30px;">
-          <p>Thank you for dining with us!</p>
-        </div>
-      </body>
-      </html>
-    `;
-
-    const printWindow = window.open('', '', 'height=600,width=800');
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-    printWindow.print();
+    toast.info(`💰 Generating bill for Table #${table.number}`, {
+      position: 'bottom-left',
+      autoClose: 1500,
+    });
   };
 
-  // ✅ Handle Bill Payment - WITH API INTEGRATION
+  const handlePrintBill = (order) => {
+    try {
+      const billDetails = calculateBillDetails(order);
+      
+      const printContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Bill - Table ${billTable.number}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            .bill-header { text-align: center; margin-bottom: 20px; }
+            .bill-info { margin: 20px 0; }
+            table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; }
+            .total-row { font-weight: bold; font-size: 18px; }
+          </style>
+        </head>
+        <body>
+          <div class="bill-header">
+            <h1>🍽️ Tasty Station</h1>
+            <p>Invoice: ${order.order_id}</p>
+          </div>
+          <div class="bill-info">
+            <p><strong>Date:</strong> ${formatDate(order.order_date)}</p>
+            <p><strong>Table:</strong> ${order.table_number}</p>
+            <p><strong>Customer:</strong> ${order.customer_name || 'Guest'}</p>
+            <p><strong>Waiter:</strong> ${order.waiter_name || 'N/A'}</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Qty</th>
+                <th>Price</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${order.items.map(item => `
+                <tr>
+                  <td>${item.dish_name || item.name}</td>
+                  <td>${item.quantity}</td>
+                  <td>₹${parseFloat(item.price).toFixed(2)}</td>
+                  <td>₹${(parseFloat(item.price) * parseInt(item.quantity)).toFixed(2)}</td>
+                </tr>
+              `).join('')}
+              <tr>
+                <td colspan="3" align="right"><strong>Subtotal:</strong></td>
+                <td>₹${billDetails.subtotal.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td colspan="3" align="right"><strong>Tax (18%):</strong></td>
+                <td>₹${billDetails.tax.toFixed(2)}</td>
+              </tr>
+              <tr class="total-row">
+                <td colspan="3" align="right"><strong>Total:</strong></td>
+                <td>₹${billDetails.total.toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="text-align: center; margin-top: 30px;">
+            <p>Thank you for dining with us!</p>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const printWindow = window.open('', '', 'height=600,width=800');
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.print();
+      
+      toast.success(`📄 Bill printed for Table #${billTable.number}!`, {
+        position: 'bottom-right',
+        autoClose: 2000,
+      });
+    } catch (err) {
+      console.error('Print error:', err);
+      toast.error('Failed to print bill', { position: 'top-right' });
+    }
+  };
+
   const handleBillPayment = async () => {
     if (!billTable) return;
 
     const tableOrder = getTableOrder(billTable.number);
     
     if (!tableOrder || !tableOrder.items || tableOrder.items.length === 0) {
-      alert('⚠️ No active order found for this table!');
+      toast.error('⚠️ No active order found!', {
+        position: 'top-right',
+        autoClose: 2000,
+      });
       return;
     }
 
@@ -237,37 +312,37 @@ const { executePayment: processPaymentTransaction } = usePayment();             
 
       console.log('💳 Processing payment for Table #' + billTable.number);
 
-      // 1️⃣ Create Bill in Supabase
+      toast.loading('⏳ Processing payment...', {
+        position: 'center',
+      });
+
       const newBill = await createBill({
         order_id: tableOrder.order_id,
         total_amount: billDetails.total,
+        final_amount: billDetails.total,
         payment_status: 'pending'
       });
 
       console.log('✅ Bill created:', newBill.bill_id);
 
-      // 2️⃣ Process Payment
       const paymentResult = await processPaymentTransaction({
         bill_id: newBill.bill_id,
         amount: billDetails.total,
-        payment_method: 'cash'  // Default to cash, can be changed
+        payment_method: 'Cash'
       });
 
       console.log('✅ Payment processed:', paymentResult);
 
-      // 3️⃣ Mark Bill as Paid
       await markBillAsPaidContext(newBill.bill_id);
 
-      // 4️⃣ Change table to available
       changeTableStatus(billTable.id, 'available');
-
-      // Success notification
-      alert(
-        `✅ Payment Successful!\n\n` +
-        `Bill #${newBill.bill_id}\n` +
-        `Table #${billTable.number}\n` +
-        `Amount: ₹${billDetails.total.toFixed(2)}\n\n` +
-        `Table is now available!`
+      
+      toast.success(
+        `✅ Payment Successful!\n💰 Amount: ₹${billDetails.total.toFixed(2)}\n🟢 Table available!`,
+        {
+          position: 'top-center',
+          autoClose: 3000,
+        }
       );
 
       setShowBillModal(false);
@@ -275,7 +350,11 @@ const { executePayment: processPaymentTransaction } = usePayment();             
 
     } catch (error) {
       console.error('❌ Error processing payment:', error);
-      alert(`❌ Payment failed: ${error.message}`);
+      
+      toast.error(`❌ Payment failed: ${error.message}`, {
+        position: 'top-right',
+        autoClose: 3000,
+      });
     } finally {
       setBillLoading(false);
     }
@@ -479,31 +558,44 @@ const { executePayment: processPaymentTransaction } = usePayment();             
         </div>
       )}
 
-      {/* ✅ Bill Modal - WITH API INTEGRATION */}
-      {showBillModal && billTable && (() => {
-        const tableOrder = getTableOrder(billTable.number);
-        const billDetails = calculateBillDetails(tableOrder);
-        
-        return (
-          <div className="modal-overlay" onClick={() => setShowBillModal(false)}>
-            <div className="modal-content details-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <div>
-                  <h2>🧾 Invoice - Table #{billTable.number}</h2>
-                  <p>Order details and billing information</p>
-                </div>
-                <button 
-                  className="modal-close-btn"
-                  onClick={() => setShowBillModal(false)}
-                >
-                  <X size={24} />
-                </button>
+      {/* Bill Modal */}
+      {showBillModal && billTable && (
+        <div className="modal-overlay" onClick={() => setShowBillModal(false)}>
+          <div className="modal-content details-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <h2>🧾 Invoice - Table #{billTable.number}</h2>
+                <p>Order details and billing information</p>
               </div>
+              <button 
+                className="modal-close-btn"
+                onClick={() => setShowBillModal(false)}
+              >
+                <X size={24} />
+              </button>
+            </div>
 
-              <div className="modal-body">
-                {tableOrder && tableOrder.items && tableOrder.items.length > 0 ? (
+            <div className="modal-body">
+              {(() => {
+                const tableOrder = getTableOrder(billTable.number);
+                if (!tableOrder || !tableOrder.items || tableOrder.items.length === 0) {
+                  return (
+                    <div style={{ 
+                      textAlign: 'center', 
+                      padding: '60px 20px',
+                      color: '#6B7280'
+                    }}>
+                      <Receipt size={64} style={{ marginBottom: '16px', opacity: 0.3 }} />
+                      <h3>No Active Order</h3>
+                      <p>This table doesn't have any active orders yet</p>
+                    </div>
+                  );
+                }
+
+                const billDetails = calculateBillDetails(tableOrder);
+
+                return (
                   <>
-                    {/* Bill Info Section */}
                     <div className="bill-info-section">
                       <div className="info-row">
                         <span className="info-label">Date:</span>
@@ -511,11 +603,11 @@ const { executePayment: processPaymentTransaction } = usePayment();             
                       </div>
                       <div className="info-row">
                         <span className="info-label">Table:</span>
-                        <span className="info-value">Table {tableOrder.table_number}</span>
+                        <span className="info-value">Table #{tableOrder.table_number}</span>
                       </div>
                       <div className="info-row">
                         <span className="info-label">Customer:</span>
-                        <span className="info-value">{tableOrder.customer_name}</span>
+                        <span className="info-value">{tableOrder.customer_name || 'Guest'}</span>
                       </div>
                       <div className="info-row">
                         <span className="info-label">Waiter:</span>
@@ -523,7 +615,6 @@ const { executePayment: processPaymentTransaction } = usePayment();             
                       </div>
                     </div>
 
-                    {/* Items Table */}
                     <div className="bill-items-table">
                       <h4>Order Items</h4>
                       <table>
@@ -539,13 +630,11 @@ const { executePayment: processPaymentTransaction } = usePayment();             
                           {tableOrder.items.map((item, index) => (
                             <tr key={index}>
                               <td>
-                                <div>
-                                  <strong>{item.dish_name || item.name}</strong>
-                                </div>
+                                <strong>{item.dish_name || item.name}</strong>
                               </td>
                               <td>{item.quantity}</td>
-                              <td>₹{item.price.toFixed(2)}</td>
-                              <td>₹{(item.price * item.quantity).toFixed(2)}</td>
+                              <td>₹{parseFloat(item.price).toFixed(2)}</td>
+                              <td>₹{(parseFloat(item.price) * parseInt(item.quantity)).toFixed(2)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -566,28 +655,21 @@ const { executePayment: processPaymentTransaction } = usePayment();             
                       </table>
                     </div>
                   </>
-                ) : (
-                  <div style={{ 
-                    textAlign: 'center', 
-                    padding: '60px 20px',
-                    color: '#6B7280'
-                  }}>
-                    <Receipt size={64} style={{ marginBottom: '16px', opacity: 0.3 }} />
-                    <h3>No Active Order</h3>
-                    <p>This table doesn't have any active orders yet</p>
-                  </div>
-                )}
-              </div>
+                );
+              })()}
+            </div>
 
-              <div className="modal-footer">
-                <button 
-                  className="btn-secondary" 
-                  onClick={() => setShowBillModal(false)}
-                  disabled={billLoading}
-                >
-                  Close
-                </button>
-                {tableOrder && tableOrder.items && tableOrder.items.length > 0 && (
+            <div className="modal-footer">
+              <button 
+                className="btn-secondary" 
+                onClick={() => setShowBillModal(false)}
+                disabled={billLoading}
+              >
+                Close
+              </button>
+              {(() => {
+                const tableOrder = getTableOrder(billTable.number);
+                return tableOrder && tableOrder.items && tableOrder.items.length > 0 && (
                   <>
                     <button 
                       className="btn-primary"
@@ -607,17 +689,17 @@ const { executePayment: processPaymentTransaction } = usePayment();             
                       ) : (
                         <>
                           <Check size={18} />
-                          Mark as Paid
+                          💰 Collect Payment
                         </>
                       )}
                     </button>
                   </>
-                )}
-              </div>
+                );
+              })()}
             </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
 
       {/* Take Order Modal */}
       {showTakeOrderModal && orderTable && (
