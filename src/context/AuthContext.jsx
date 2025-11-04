@@ -1,4 +1,4 @@
-// src/context/AuthContext.jsx
+// src/context/AuthContext.jsx - ✅ COMPLETE WITH isOwner
 
 import React, { createContext, useState, useContext, useEffect } from 'react';
 
@@ -52,7 +52,7 @@ export const AuthProvider = ({ children }) => {
       color: '#F59E0B',
       email: 'maria@tastystation.com',
       password: 'chef123',
-      permissions: ['orderline'],  // ✅ Fixed - changed from 'order' to 'orderline'
+      permissions: ['orderline'],
       defaultRoute: '/orderline'
     },
     {
@@ -72,8 +72,14 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const savedUser = localStorage.getItem('currentUser');
     if (savedUser) {
-      setCurrentUser(JSON.parse(savedUser));
-      setIsAuthenticated(true);
+      try {
+        const parsedUser = JSON.parse(savedUser);
+        setCurrentUser(parsedUser);
+        setIsAuthenticated(true);
+      } catch (error) {
+        console.error('Error parsing saved user:', error);
+        localStorage.removeItem('currentUser');
+      }
     }
     setLoading(false);
   }, []);
@@ -90,9 +96,11 @@ export const AuthProvider = ({ children }) => {
       setCurrentUser(userWithoutPassword);
       setIsAuthenticated(true);
       localStorage.setItem('currentUser', JSON.stringify(userWithoutPassword));
+      console.log('✅ Login successful:', userWithoutPassword.name, '-', userWithoutPassword.role);
       return { success: true, user: userWithoutPassword };
     }
 
+    console.error('❌ Login failed - Invalid credentials');
     return { success: false, message: 'Invalid email or password' };
   };
 
@@ -104,6 +112,7 @@ export const AuthProvider = ({ children }) => {
       
       setCurrentUser(userWithoutPassword);
       localStorage.setItem('currentUser', JSON.stringify(userWithoutPassword));
+      console.log('✅ Role switched to:', userWithoutPassword.role);
       return true;
     }
     return false;
@@ -113,6 +122,7 @@ export const AuthProvider = ({ children }) => {
     setCurrentUser(null);
     setIsAuthenticated(false);
     localStorage.removeItem('currentUser');
+    console.log('✅ Logged out successfully');
   };
 
   const hasPermission = (permission) => {
@@ -121,16 +131,36 @@ export const AuthProvider = ({ children }) => {
     return currentUser.permissions.includes(permission);
   };
 
+  // ✅ NEW - Check if user is Owner
+  const isOwner = currentUser?.role === 'Owner';
+
+  // ✅ NEW - Check if user is Chef
+  const isChef = currentUser?.role === 'Chef';
+
+  // ✅ NEW - Check if user is Waiter
+  const isWaiter = currentUser?.role === 'Waiter';
+
+  // ✅ NEW - Check if user is Customer
+  const isCustomer = currentUser?.role === 'Customer';
+
   const value = {
     currentUser,
     isAuthenticated,
     loading,
     userRoles,
+    isOwner,      // ✅ ADD THIS
+    isChef,       // ✅ ADD THIS
+    isWaiter,     // ✅ ADD THIS
+    isCustomer,   // ✅ ADD THIS
     login,
     logout,
     switchRole,
     hasPermission
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 };

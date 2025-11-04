@@ -1,208 +1,254 @@
-// src/pages/Menu/Menu.jsx
+// src/pages/Menu/Menu.jsx - ✅ FINAL VERSION
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Grid, List, Filter, X, Edit2, Trash2, Check } from 'lucide-react';
+import { Plus, Search, Grid, List, Filter, Edit2, Trash2 } from 'lucide-react';
 import './Menu.css';
 
+// ✅ Import APIs
+import { getCategories, getCategoriesWithDishCount } from '../api/categoryApi';
+import { getDishes, getDishesWithCategory, getDishesByCategory, searchDishesByName, addDish, updateDish, deleteDish } from '../api/dishApi';
+
+// ✅ IMPORT AUTH CONTEXT - ADD THIS LINE
+import { useAuth } from '../context/AuthContext';
+
 const Menu = () => {
+  // ✅ GET isOwner FROM AUTH CONTEXT - CHANGE THIS LINE
+  const { isOwner } = useAuth();
+
   const [viewMode, setViewMode] = useState('grid');
   const [selectedCategory, setSelectedCategory] = useState('All Dishes');
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  // ✅ State for API data
+  const [categories, setCategories] = useState([]);
+  const [dishes, setDishes] = useState([]);
+  const [filteredDishes, setFilteredDishes] = useState([]);
+
+  // ✅ Modal states
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedDishes, setSelectedDishes] = useState([]);
   const [editingDish, setEditingDish] = useState(null);
-
-  const [categories, setCategories] = useState([
-    { name: 'All Dishes', count: 154, icon: '🍽️' },
-    { name: 'Breakfast', count: 12, icon: '🍳' },
-    { name: 'Beef Dishes', count: 5, icon: '🥩' },
-    { name: 'Biryani', count: 8, icon: '🍛' },
-    { name: 'Chicken Dishes', count: 10, icon: '🍗' },
-    { name: 'Desserts', count: 19, icon: '🍰' },
-    { name: 'Dinner', count: 8, icon: '🍽️' },
-    { name: 'Drinks', count: 15, icon: '🥤' },
-    { name: 'Fast Foods', count: 25, icon: '🍔' },
-    { name: 'Lunch', count: 20, icon: '🍱' },
-    { name: 'Platters', count: 14, icon: '🍱' },
-    { name: 'Salads', count: 8, icon: '🥗' },
-    { name: 'Side Dishes', count: 4, icon: '🍟' },
-    { name: 'Soups', count: 3, icon: '🍲' }
-  ]);
-
-  // Load from localStorage on mount
-  const [dishes, setDishes] = useState(() => {
-    const savedDishes = localStorage.getItem('restaurantDishes');
-    if (savedDishes) {
-      return JSON.parse(savedDishes);
-    }
-    // Default dishes if nothing in localStorage
-    return [
-      // Desserts
-      { id: 1, name: 'Cheese Syrniky Pancakes', price: 8.00, category: 'Desserts', image: '🥞' },
-      { id: 2, name: 'Apple Stuffed Pancake', price: 10.00, category: 'Desserts', image: '🥞' },
-      { id: 3, name: 'Terracotta Bowl', price: 12.00, category: 'Desserts', image: '🍮' },
-      { id: 4, name: 'Croissant Dessert', price: 15.00, category: 'Desserts', image: '🥐' },
-      { id: 5, name: 'Granola Banana & Berry', price: 10.00, category: 'Desserts', image: '🥗' },
-      { id: 6, name: 'Vanilla Cherry Cupcake', price: 8.00, category: 'Desserts', image: '🧁' },
-      { id: 7, name: 'Belgian Waffles', price: 20.00, category: 'Desserts', image: '🧇' },
-      { id: 8, name: 'Granola with Yoghurt', price: 15.00, category: 'Desserts', image: '🥣' },
-      { id: 9, name: 'Chocolate Pancake', price: 12.00, category: 'Desserts', image: '🥞' },
-      { id: 10, name: 'Muesli Bowl', price: 10.00, category: 'Desserts', image: '🥗' },
-      { id: 11, name: 'Waffles with ice-cream', price: 10.00, category: 'Desserts', image: '🧇' },
-      { id: 12, name: 'Fruit Salad', price: 9.00, category: 'Desserts', image: '🍓' },
-      { id: 13, name: 'Ice Cream Sundae', price: 11.00, category: 'Desserts', image: '🍨' },
-      { id: 14, name: 'Tiramisu', price: 14.00, category: 'Desserts', image: '🍰' },
-      
-      // Breakfast
-      { id: 15, name: 'Eggs Benedict', price: 12.00, category: 'Breakfast', image: '🍳' },
-      { id: 16, name: 'French Toast', price: 10.00, category: 'Breakfast', image: '🍞' },
-      { id: 17, name: 'Breakfast Burrito', price: 11.00, category: 'Breakfast', image: '🌯' },
-      { id: 18, name: 'Omelette Special', price: 9.00, category: 'Breakfast', image: '🍳' },
-      { id: 19, name: 'Avocado Toast', price: 8.00, category: 'Breakfast', image: '🥑' },
-      
-      // Beef Dishes
-      { id: 20, name: 'Beef Steak', price: 30.00, category: 'Beef Dishes', image: '🥩' },
-      { id: 21, name: 'Beef Burger', price: 15.00, category: 'Beef Dishes', image: '🍔' },
-      { id: 22, name: 'Beef Tacos', price: 12.00, category: 'Beef Dishes', image: '🌮' },
-      { id: 23, name: 'Beef Stroganoff', price: 18.00, category: 'Beef Dishes', image: '🍲' },
-      { id: 24, name: 'BBQ Beef Ribs', price: 25.00, category: 'Beef Dishes', image: '🍖' },
-      
-      // Biryani
-      { id: 25, name: 'Chicken Biryani', price: 14.00, category: 'Biryani', image: '🍛' },
-      { id: 26, name: 'Mutton Biryani', price: 16.00, category: 'Biryani', image: '🍛' },
-      { id: 27, name: 'Vegetable Biryani', price: 12.00, category: 'Biryani', image: '🍛' },
-      { id: 28, name: 'Egg Biryani', price: 10.00, category: 'Biryani', image: '🍛' },
-      
-      // Chicken Dishes
-      { id: 29, name: 'Grilled Chicken', price: 18.00, category: 'Chicken Dishes', image: '🍗' },
-      { id: 30, name: 'Chicken Tikka', price: 15.00, category: 'Chicken Dishes', image: '🍗' },
-      { id: 31, name: 'Butter Chicken', price: 16.00, category: 'Chicken Dishes', image: '🍗' },
-      { id: 32, name: 'Chicken Wings', price: 12.00, category: 'Chicken Dishes', image: '🍗' },
-      { id: 33, name: 'Chicken Quinoa', price: 14.00, category: 'Chicken Dishes', image: '🍗' },
-      
-      // Drinks
-      { id: 34, name: 'Fresh Orange Juice', price: 5.00, category: 'Drinks', image: '🥤' },
-      { id: 35, name: 'Mango Smoothie', price: 6.00, category: 'Drinks', image: '🥤' },
-      { id: 36, name: 'Iced Coffee', price: 4.00, category: 'Drinks', image: '☕' },
-      { id: 37, name: 'Green Tea', price: 3.00, category: 'Drinks', image: '🍵' },
-      { id: 38, name: 'Lemonade', price: 4.00, category: 'Drinks', image: '🥤' },
-      
-      // Fast Foods
-      { id: 39, name: 'Classic Burger', price: 10.00, category: 'Fast Foods', image: '🍔' },
-      { id: 40, name: 'Cheese Pizza', price: 12.00, category: 'Fast Foods', image: '🍕' },
-      { id: 41, name: 'Hot Dog', price: 8.00, category: 'Fast Foods', image: '🌭' },
-      { id: 42, name: 'French Fries', price: 5.00, category: 'Fast Foods', image: '🍟' },
-      { id: 43, name: 'Fried Chicken', price: 11.00, category: 'Fast Foods', image: '🍗' },
-      
-      // Salads
-      { id: 44, name: 'Caesar Salad', price: 9.00, category: 'Salads', image: '🥗' },
-      { id: 45, name: 'Greek Salad', price: 10.00, category: 'Salads', image: '🥗' },
-      { id: 46, name: 'Garden Salad', price: 8.00, category: 'Salads', image: '🥗' },
-      { id: 47, name: 'Chicken Salad', price: 12.00, category: 'Salads', image: '🥗' },
-      
-      // Soups
-      { id: 48, name: 'Tomato Soup', price: 6.00, category: 'Soups', image: '🍲' },
-      { id: 49, name: 'Chicken Soup', price: 7.00, category: 'Soups', image: '🍲' },
-      { id: 50, name: 'Mushroom Soup', price: 8.00, category: 'Soups', image: '🍲' }
-    ];
-  });
-
-  // Save to localStorage whenever dishes change
-  useEffect(() => {
-    localStorage.setItem('restaurantDishes', JSON.stringify(dishes));
-    updateCategoryCounts();
-  }, [dishes]);
-
-  const [newDish, setNewDish] = useState({
-    name: '',
+  const [formData, setFormData] = useState({
+    dish_name: '',
     price: '',
-    category: 'Desserts',
-    image: '🍽️'
+    category_id: '',
+    availability_status: true,
+    image_url: ''
   });
 
-  // Filter dishes based on category and search
-  const filteredDishes = dishes.filter(dish => {
-    const matchesCategory = selectedCategory === 'All Dishes' || dish.category === selectedCategory;
-    const matchesSearch = dish.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  // ✅ Load categories and dishes from database
+  useEffect(() => {
+    loadMenuData();
+  }, []);
 
-  // Update category counts dynamically
-  const updateCategoryCounts = () => {
-    const counts = {};
-    dishes.forEach(dish => {
-      counts[dish.category] = (counts[dish.category] || 0) + 1;
-    });
-    
-    setCategories(categories.map(cat => ({
-      ...cat,
-      count: cat.name === 'All Dishes' ? dishes.length : (counts[cat.name] || 0)
-    })));
-  };
+  const loadMenuData = async () => {
+    try {
+      setLoading(true);
 
-  // Handle checkbox selection
-  const handleSelectDish = (dishId) => {
-    if (selectedDishes.includes(dishId)) {
-      setSelectedDishes(selectedDishes.filter(id => id !== dishId));
-    } else {
-      setSelectedDishes([...selectedDishes, dishId]);
-    }
-  };
-
-  // Add new dish
-  const handleAddDish = () => {
-    if (newDish.name && newDish.price) {
-      const dish = {
-        id: Date.now(),
-        name: newDish.name,
-        price: parseFloat(newDish.price),
-        category: selectedCategory === 'All Dishes' ? 'Desserts' : selectedCategory,
-        image: newDish.image || '🍽️'
-      };
+      // Load categories with dish counts
+      const categoriesData = await getCategoriesWithDishCount();
       
-      setDishes([...dishes, dish]);
-      
-      setNewDish({ name: '', price: '', category: selectedCategory, image: '🍽️' });
-      setShowAddModal(false);
-      alert(`${dish.name} added successfully!`);
-    } else {
-      alert('Please fill in all required fields');
+      // Add "All Dishes" category
+      const totalDishes = categoriesData.reduce((sum, cat) => sum + cat.dish_count, 0);
+      const allCategories = [
+        { 
+          category_id: 0, 
+          category_name: 'All Dishes', 
+          dish_count: totalDishes,
+          icon: '🍽️' 
+        },
+        ...categoriesData.map(cat => ({
+          ...cat,
+          icon: getCategoryIcon(cat.category_name)
+        }))
+      ];
+
+      setCategories(allCategories);
+
+      // Load all dishes with category details
+      const dishesData = await getDishesWithCategory();
+      setDishes(dishesData);
+      setFilteredDishes(dishesData);
+
+    } catch (error) {
+      console.error('Error loading menu data:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Edit dish
-  const handleEditDish = () => {
-    if (editingDish && editingDish.name && editingDish.price) {
-      setDishes(dishes.map(dish => 
-        dish.id === editingDish.id ? editingDish : dish
-      ));
-      setEditingDish(null);
-      setShowEditModal(false);
-      alert('Dish updated successfully!');
-    }
+  // ✅ Get category icon based on name
+  const getCategoryIcon = (categoryName) => {
+    const iconMap = {
+      'Breakfast': '🍳',
+      'Beef Dishes': '🥩',
+      'Biryani': '🍛',
+      'Chicken Dishes': '🍗',
+      'Desserts': '🍰',
+      'Dinner': '🍽️',
+      'Drinks': '🥤',
+      'Fast Foods': '🍔',
+      'Lunch': '🍱',
+      'Platters': '🍱',
+      'Salads': '🥗',
+      'Side Dishes': '🍟',
+      'Soups': '🍲'
+    };
+    return iconMap[categoryName] || '🍽️';
   };
 
-  // Delete dishes
-  const handleDeleteDishes = () => {
-    if (selectedDishes.length > 0 && window.confirm(`Delete ${selectedDishes.length} dish(es)?`)) {
-      setDishes(dishes.filter(dish => !selectedDishes.includes(dish.id)));
-      setSelectedDishes([]);
-      alert('Selected dishes deleted!');
-    }
-  };
+  // ✅ Filter dishes by category and search
+  useEffect(() => {
+    filterDishes();
+  }, [selectedCategory, searchQuery, dishes]);
 
-  // Open edit modal
-  const openEditModal = (dish) => {
-    setEditingDish({ ...dish });
-    setShowEditModal(true);
+  const filterDishes = async () => {
+    try {
+      let filtered = [];
+
+      // If searching, use search API
+      if (searchQuery.trim()) {
+        filtered = await searchDishesByName(searchQuery);
+        
+        // Apply category filter if not "All Dishes"
+        if (selectedCategory !== 'All Dishes') {
+          const category = categories.find(c => c.category_name === selectedCategory);
+          if (category) {
+            filtered = filtered.filter(d => d.category_id === category.category_id);
+          }
+        }
+      } else {
+        // No search, filter by category
+        if (selectedCategory === 'All Dishes') {
+          filtered = dishes;
+        } else {
+          const category = categories.find(c => c.category_name === selectedCategory);
+          if (category) {
+            filtered = await getDishesByCategory(category.category_id);
+          }
+        }
+      }
+
+      setFilteredDishes(filtered);
+    } catch (error) {
+      console.error('Error filtering dishes:', error);
+    }
   };
 
   // Handle category change
   const handleCategoryChange = (categoryName) => {
     setSelectedCategory(categoryName);
-    setSelectedDishes([]);
   };
+
+  // ✅ ADD Dish
+  const handleAddDish = async () => {
+    if (!formData.dish_name || !formData.price || !formData.category_id) {
+      alert('❌ Please fill all fields');
+      return;
+    }
+
+    try {
+      const newDish = await addDish({
+        dish_name: formData.dish_name,
+        price: parseFloat(formData.price),
+        category_id: parseInt(formData.category_id),
+        availability_status: formData.availability_status,
+        image_url: formData.image_url || null
+      });
+
+      console.log('✅ Dish added:', newDish);
+      alert('✅ Dish added successfully!');
+      
+      // Reset form
+      setFormData({
+        dish_name: '',
+        price: '',
+        category_id: '',
+        availability_status: true,
+        image_url: ''
+      });
+      setShowAddModal(false);
+      
+      // Reload menu
+      loadMenuData();
+    } catch (error) {
+      console.error('❌ Error adding dish:', error);
+      alert(`❌ Failed: ${error.message}`);
+    }
+  };
+
+  // ✅ EDIT Dish
+  const handleEditDish = (dish) => {
+    setEditingDish(dish);
+    setFormData({
+      dish_name: dish.dish_name,
+      price: dish.price,
+      category_id: dish.category_id,
+      availability_status: dish.availability_status,
+      image_url: dish.image_url || ''
+    });
+    setShowAddModal(true);
+  };
+
+  // ✅ UPDATE Dish
+  const handleUpdateDish = async () => {
+    try {
+      await updateDish(editingDish.dish_id, {
+        dish_name: formData.dish_name,
+        price: parseFloat(formData.price),
+        category_id: parseInt(formData.category_id),
+        availability_status: formData.availability_status,
+        image_url: formData.image_url || null
+      });
+
+      console.log('✅ Dish updated:', editingDish.dish_id);
+      alert('✅ Dish updated successfully!');
+      
+      // Reset form
+      setFormData({
+        dish_name: '',
+        price: '',
+        category_id: '',
+        availability_status: true,
+        image_url: ''
+      });
+      setEditingDish(null);
+      setShowAddModal(false);
+      
+      // Reload menu
+      loadMenuData();
+    } catch (error) {
+      console.error('❌ Error updating dish:', error);
+      alert(`❌ Failed: ${error.message}`);
+    }
+  };
+
+  // ✅ DELETE Dish
+  const handleDeleteDish = async (dishId) => {
+    if (!window.confirm('Are you sure you want to delete this dish?')) return;
+
+    try {
+      await deleteDish(dishId);
+      console.log('✅ Dish deleted:', dishId);
+      alert('✅ Dish deleted successfully!');
+      
+      // Reload menu
+      loadMenuData();
+    } catch (error) {
+      console.error('❌ Error deleting dish:', error);
+      alert(`❌ Failed: ${error.message}`);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="manage-dishes-page">
+        <div style={{ textAlign: 'center', padding: '60px', color: '#666' }}>
+          ⏳ Loading menu...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="manage-dishes-page">
@@ -213,18 +259,16 @@ const Menu = () => {
         <div className="categories-list">
           {categories.map(category => (
             <div
-              key={category.name}
-              className={`category-item ${selectedCategory === category.name ? 'active' : ''}`}
-              onClick={() => handleCategoryChange(category.name)}
+              key={category.category_id}
+              className={`category-item ${selectedCategory === category.category_name ? 'active' : ''}`}
+              onClick={() => handleCategoryChange(category.category_name)}
             >
               <span className="category-icon">{category.icon}</span>
-              <span className="category-name">{category.name}</span>
-              <span className="category-count">{category.count}</span>
+              <span className="category-name">{category.category_name}</span>
+              <span className="category-count">{category.dish_count || 0}</span>
             </div>
           ))}
         </div>
-
-        {/* ❌ REMOVED: Add Category Button */}
       </div>
 
       {/* Main Content */}
@@ -243,7 +287,39 @@ const Menu = () => {
               />
             </div>
             
-            {/* ❌ REMOVED: Add New Dishes Button */}
+            {/* ✅ ADD BUTTON - Only for Owner */}
+            {isOwner && (
+              <button 
+                className="add-dish-btn"
+                onClick={() => {
+                  setEditingDish(null);
+                  setFormData({
+                    dish_name: '',
+                    price: '',
+                    category_id: '',
+                    availability_status: true,
+                    image_url: ''
+                  });
+                  setShowAddModal(true);
+                }}
+                style={{
+                  padding: '8px 16px',
+                  background: '#10B981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '14px',
+                  fontWeight: '600'
+                }}
+              >
+                <Plus size={18} />
+                Add Dish
+              </button>
+            )}
           </div>
         </div>
 
@@ -272,29 +348,103 @@ const Menu = () => {
               <Filter size={18} />
               Filter
             </button>
-            
-            {/* ❌ REMOVED: Bulk Delete Button */}
           </div>
         </div>
 
         <div className={`dishes-grid ${viewMode}`}>
-          {/* ❌ REMOVED: Add Dish Card */}
-
           {filteredDishes.map(dish => (
-            <div key={dish.id} className="dish-card">
-              {/* ❌ REMOVED: Checkbox */}
-              
+            <div key={dish.dish_id} className="dish-card" style={{ position: 'relative' }}>
+              {/* ✅ EDIT/DELETE BUTTONS - Only for Owner */}
+              {isOwner && (
+                <div style={{
+                  position: 'absolute',
+                  top: '8px',
+                  right: '8px',
+                  display: 'flex',
+                  gap: '4px',
+                  zIndex: 10
+                }}>
+                  <button
+                    onClick={() => handleEditDish(dish)}
+                    style={{
+                      padding: '6px 10px',
+                      background: '#3B82F6',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                    title="Edit Dish"
+                  >
+                    <Edit2 size={14} />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteDish(dish.dish_id)}
+                    style={{
+                      padding: '6px 10px',
+                      background: '#EF4444',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                    title="Delete Dish"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              )}
+
               <div className="dish-image">
-                <span className="dish-emoji">{dish.image}</span>
+                {dish.image_url ? (
+                  <img src={dish.image_url} alt={dish.dish_name} />
+                ) : (
+                  <span className="dish-emoji">🍽️</span>
+                )}
               </div>
               
               <div className="dish-info">
-                <span className="dish-category-label">{dish.category}</span>
-                <h3 className="dish-name">{dish.name}</h3>
-                <p className="dish-price">₹{dish.price.toFixed(2)}</p>
+                <span className="dish-category-label">
+                  {dish.Category?.category_name || 'Uncategorized'}
+                </span>
+                <h3 className="dish-name">{dish.dish_name}</h3>
+                <p className="dish-price">₹{parseFloat(dish.price).toFixed(2)}</p>
+                
+                {/* Availability badge */}
+                <div style={{ marginTop: '8px' }}>
+                  {dish.availability_status ? (
+                    <span style={{
+                      padding: '4px 8px',
+                      background: '#D1FAE5',
+                      color: '#059669',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: '600'
+                    }}>
+                      ✓ Available
+                    </span>
+                  ) : (
+                    <span style={{
+                      padding: '4px 8px',
+                      background: '#FEE2E2',
+                      color: '#DC2626',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: '600'
+                    }}>
+                      Out of Stock
+                    </span>
+                  )}
+                </div>
               </div>
-              
-              {/* ❌ REMOVED: Edit/Delete Buttons */}
             </div>
           ))}
         </div>
@@ -302,145 +452,209 @@ const Menu = () => {
         {filteredDishes.length === 0 && (
           <div className="no-dishes">
             <p>No dishes found in {selectedCategory}</p>
+            {searchQuery && (
+              <p style={{ fontSize: '14px', color: '#666', marginTop: '8px' }}>
+                Try adjusting your search query
+              </p>
+            )}
           </div>
         )}
       </div>
 
-      {/* Add Modal - Keep for future use */}
-      {showAddModal && (
-        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Add New Dish</h2>
-              <button className="modal-close-btn" onClick={() => setShowAddModal(false)}>
-                <X size={24} />
+      {/* ✅ ADD/EDIT MODAL - Only for Owner */}
+      {isOwner && showAddModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '24px',
+            width: '90%',
+            maxWidth: '500px',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '16px'
+            }}>
+              <h2>{editingDish ? '✏️ Edit Dish' : '➕ Add New Dish'}</h2>
+              <button
+                onClick={() => {
+                  setShowAddModal(false);
+                  setEditingDish(null);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer'
+                }}
+              >
+                ✕
               </button>
             </div>
 
-            <div className="modal-body">
-              <div className="form-group">
-                <label>Dish Name *</label>
+            <form style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* Dish Name */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>
+                  Dish Name *
+                </label>
                 <input
                   type="text"
-                  placeholder="Enter dish name"
-                  value={newDish.name}
-                  onChange={(e) => setNewDish({ ...newDish, name: e.target.value })}
+                  value={formData.dish_name}
+                  onChange={(e) => setFormData({ ...formData, dish_name: e.target.value })}
+                  placeholder="e.g., Butter Chicken"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #E5E7EB',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    boxSizing: 'border-box'
+                  }}
                 />
               </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Price *</label>
+              {/* Price */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>
+                  Price (₹) *
+                </label>
+                <input
+                  type="number"
+                  value={formData.price}
+                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                  placeholder="e.g., 250"
+                  step="0.01"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #E5E7EB',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {/* Category */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>
+                  Category *
+                </label>
+                <select
+                  value={formData.category_id}
+                  onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #E5E7EB',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  <option value="">Select Category</option>
+                  {categories.slice(1).map(cat => (
+                    <option key={cat.category_id} value={cat.category_id}>
+                      {cat.category_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Image URL */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>
+                  Image URL (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={formData.image_url}
+                  onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                  placeholder="e.g., https://..."
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #E5E7EB',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {/* Availability */}
+              <div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600' }}>
                   <input
-                    type="number"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={newDish.price}
-                    onChange={(e) => setNewDish({ ...newDish, price: e.target.value })}
+                    type="checkbox"
+                    checked={formData.availability_status}
+                    onChange={(e) => setFormData({ ...formData, availability_status: e.target.checked })}
                   />
-                </div>
-
-                <div className="form-group">
-                  <label>Category</label>
-                  <select
-                    value={selectedCategory === 'All Dishes' ? 'Desserts' : selectedCategory}
-                    onChange={(e) => setNewDish({ ...newDish, category: e.target.value })}
-                  >
-                    {categories.filter(c => c.name !== 'All Dishes').map(cat => (
-                      <option key={cat.name} value={cat.name}>{cat.name}</option>
-                    ))}
-                  </select>
-                </div>
+                  Available
+                </label>
               </div>
 
-              <div className="form-group">
-                <label>Image Emoji</label>
-                <input
-                  type="text"
-                  placeholder="🍽️"
-                  value={newDish.image}
-                  onChange={(e) => setNewDish({ ...newDish, image: e.target.value })}
-                />
+              {/* Buttons */}
+              <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (editingDish) {
+                      handleUpdateDish();
+                    } else {
+                      handleAddDish();
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '10px 16px',
+                    background: '#10B981',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: '600'
+                  }}
+                >
+                  {editingDish ? '💾 Update' : '➕ Add'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setEditingDish(null);
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '10px 16px',
+                    background: '#E5E7EB',
+                    color: '#374151',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: '600'
+                  }}
+                >
+                  Cancel
+                </button>
               </div>
-            </div>
-
-            <div className="modal-footer">
-              <button className="btn-cancel" onClick={() => setShowAddModal(false)}>
-                Cancel
-              </button>
-              <button className="btn-confirm" onClick={handleAddDish}>
-                <Check size={18} />
-                Add Dish
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Modal */}
-      {showEditModal && editingDish && (
-        <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Edit Dish</h2>
-              <button className="modal-close-btn" onClick={() => setShowEditModal(false)}>
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="modal-body">
-              <div className="form-group">
-                <label>Dish Name *</label>
-                <input
-                  type="text"
-                  value={editingDish.name}
-                  onChange={(e) => setEditingDish({ ...editingDish, name: e.target.value })}
-                />
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Price *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={editingDish.price}
-                    onChange={(e) => setEditingDish({ ...editingDish, price: parseFloat(e.target.value) })}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Category</label>
-                  <select
-                    value={editingDish.category}
-                    onChange={(e) => setEditingDish({ ...editingDish, category: e.target.value })}
-                  >
-                    {categories.filter(c => c.name !== 'All Dishes').map(cat => (
-                      <option key={cat.name} value={cat.name}>{cat.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label>Image Emoji</label>
-                <input
-                  type="text"
-                  value={editingDish.image}
-                  onChange={(e) => setEditingDish({ ...editingDish, image: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div className="modal-footer">
-              <button className="btn-cancel" onClick={() => setShowEditModal(false)}>
-                Cancel
-              </button>
-              <button className="btn-confirm" onClick={handleEditDish}>
-                <Check size={18} />
-                Update Dish
-              </button>
-            </div>
+            </form>
           </div>
         </div>
       )}

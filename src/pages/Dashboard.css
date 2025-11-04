@@ -503,3 +503,26 @@
     grid-template-columns: 1fr;
   }
 }
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #9CA3AF;
+}
+
+.empty-state svg {
+  margin-bottom: 16px;
+  opacity: 0.4;
+}
+
+.empty-state p {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: #6B7280;
+}
+
+.empty-state span {
+  font-size: 14px;
+  color: #9CA3AF;
+}

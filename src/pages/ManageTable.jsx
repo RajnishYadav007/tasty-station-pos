@@ -1,15 +1,19 @@
-// src/pages/ManageTable/ManageTable.jsx
+// src/pages/ManageTable/ManageTable.jsx - ✅ WITH FULL API INTEGRATION
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrders } from '../context/OrderContext';
-import { Users, Plus, X, Check, ShoppingCart, Receipt } from 'lucide-react';
+import { useBill } from '../context/BillContext';
+import { usePayment } from '../context/PaymentContext';
+import { Users, Plus, X, Check, ShoppingCart, Receipt, Download, FileText, Clock } from 'lucide-react';
 import TakeOrderModal from '../components/TakeOrderModal';  
 import './ManageTable.css';
 
 const ManageTable = () => {
   const navigate = useNavigate();
-  const { addOrder } = useOrders();
+  const { orders } = useOrders();
+ const { createBill, markBillAsPaid: markBillAsPaidContext, getRevenue } = useBill();
+const { executePayment: processPaymentTransaction } = usePayment();                                // ✅ NEW
   
   const [selectedArea, setSelectedArea] = useState('Main Dining');
   const [selectedTable, setSelectedTable] = useState(null);
@@ -18,53 +22,262 @@ const ManageTable = () => {
   const [billTable, setBillTable] = useState(null);
   const [showTakeOrderModal, setShowTakeOrderModal] = useState(false);  
   const [orderTable, setOrderTable] = useState(null);  
+  const [showGuestModal, setShowGuestModal] = useState(false);
+  const [guestCount, setGuestCount] = useState(2);
+  const [tempTable, setTempTable] = useState(null);
+  const [billLoading, setBillLoading] = useState(false);  // ✅ NEW - For loading state
 
-  const [tables, setTables] = useState([
-    { id: 1, number: 1, capacity: 6, status: 'reserved', area: 'Main Dining' },
-    { id: 2, number: 2, capacity: 2, status: 'occupied', area: 'Main Dining' },
+  // ✅ Initial table data
+  const initialTables = [
+    { id: 1, number: 1, capacity: 6, status: 'available', area: 'Main Dining' },
+    { id: 2, number: 2, capacity: 2, status: 'available', area: 'Main Dining' },
     { id: 3, number: 3, capacity: 2, status: 'available', area: 'Main Dining' },
-    { id: 4, number: 4, capacity: 3, status: 'occupied', area: 'Main Dining' },
+    { id: 4, number: 4, capacity: 3, status: 'available', area: 'Main Dining' },
     { id: 5, number: 5, capacity: 4, status: 'available', area: 'Main Dining' },
     { id: 6, number: 6, capacity: 7, status: 'available', area: 'Main Dining' },
     { id: 7, number: 7, capacity: 10, status: 'available', area: 'Main Dining' },
-    { id: 8, number: 8, capacity: 2, status: 'reserved', area: 'Main Dining' },
-    { id: 9, number: 9, capacity: 4, status: 'occupied', area: 'Main Dining' },
-    { id: 10, number: 10, capacity: 2, status: 'reserved', area: 'Main Dining' },
+    { id: 8, number: 8, capacity: 2, status: 'available', area: 'Main Dining' },
+    { id: 9, number: 9, capacity: 4, status: 'available', area: 'Main Dining' },
+    { id: 10, number: 10, capacity: 2, status: 'available', area: 'Main Dining' },
     { id: 11, number: 11, capacity: 2, status: 'available', area: 'Terrace' },
     { id: 12, number: 12, capacity: 8, status: 'available', area: 'Terrace' },
-    { id: 13, number: 13, capacity: 4, status: 'reserved', area: 'Terrace' },
+    { id: 13, number: 13, capacity: 4, status: 'available', area: 'Terrace' },
     { id: 14, number: 14, capacity: 6, status: 'available', area: 'Outdoor' },
-    { id: 15, number: 15, capacity: 4, status: 'occupied', area: 'Outdoor' }
-  ]);
+    { id: 15, number: 15, capacity: 4, status: 'available', area: 'Outdoor' }
+  ];
 
-  const [newReservation, setNewReservation] = useState({
-    name: '',
-    time: '',
-    guests: 2,
-    phone: '',
-    table: null
+  const [tables, setTables] = useState(() => {
+    const saved = localStorage.getItem('restaurantTables');
+    return saved ? JSON.parse(saved) : initialTables;
   });
+
+  // ✅ Save tables to localStorage
+  useEffect(() => {
+    localStorage.setItem('restaurantTables', JSON.stringify(tables));
+  }, [tables]);
 
   const areas = ['Main Dining', 'Terrace', 'Outdoor'];
 
-  // ✅ Updated - Open modal instead of navigate
-  const handleTakeOrder = (table) => {
-    changeTableStatus(table.id, 'occupied');
+  // ✅ Get order for table (active OR last served order)
+  const getTableOrder = (tableNumber) => {
+    const activeOrder = orders.find(order => 
+      order.table_number === tableNumber && 
+      order.items && 
+      order.items.length > 0 &&
+      !order.items.every(item => item.status === 'served')
+    );
+    
+    if (activeOrder) return activeOrder;
+    
+    const servedOrders = orders.filter(order => 
+      order.table_number === tableNumber && 
+      order.items && 
+      order.items.length > 0 &&
+      order.items.every(item => item.status === 'served')
+    );
+    
+    if (servedOrders.length > 0) {
+      return servedOrders.sort((a, b) => 
+        new Date(b.order_date) - new Date(a.order_date)
+      )[0];
+    }
+    
+    return null;
+  };
+
+  // ✅ Calculate bill details
+  const calculateBillDetails = (order) => {
+    if (!order || !order.items) {
+      return { subtotal: 0, tax: 0, total: 0 };
+    }
+
+    const subtotal = order.items.reduce((sum, item) => {
+      const price = parseFloat(item.price) || 0;
+      const quantity = parseInt(item.quantity) || 1;
+      return sum + (price * quantity);
+    }, 0);
+    
+    const tax = subtotal * 0.18;
+    const total = subtotal + tax;
+    
+    return { subtotal, tax, total };
+  };
+
+  // Format date
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // 🟢 Available button → Guest modal
+  const handleAvailableClick = (table) => {
+    setTempTable(table);
+    setGuestCount(2);
+    setShowGuestModal(true);
+  };
+
+  // 🟢 Confirm guests → Occupied → TakeOrder
+  const handleConfirmGuests = () => {
+    if (tempTable && guestCount > 0) {
+      changeTableStatus(tempTable.id, 'occupied');
+      setOrderTable(tempTable);
+      setShowGuestModal(false);
+      setShowTakeOrderModal(true);
+      setTempTable(null);
+    }
+  };
+
+  // 🔵 Occupied button → TakeOrder modal
+  const handleOccupiedClick = (table) => {
     setOrderTable(table);
     setShowTakeOrderModal(true);
   };
 
+  // 🟠 Bill button → Bill modal
   const handleGenerateBill = (table) => {
     setBillTable(table);
     setShowBillModal(true);
   };
 
-  const handleBillPayment = () => {
-    if (billTable) {
+  // ✅ Print bill
+  const handlePrintBill = (order) => {
+    const billDetails = calculateBillDetails(order);
+    
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Bill - Table ${billTable.number}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          .bill-header { text-align: center; margin-bottom: 20px; }
+          .bill-info { margin: 20px 0; }
+          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          th { background-color: #f2f2f2; }
+          .total-row { font-weight: bold; font-size: 18px; }
+        </style>
+      </head>
+      <body>
+        <div class="bill-header">
+          <h1>🍽️ Tasty Station</h1>
+          <p>Invoice: ${order.order_id}</p>
+        </div>
+        <div class="bill-info">
+          <p><strong>Date:</strong> ${formatDate(order.order_date)}</p>
+          <p><strong>Table:</strong> ${order.table_number}</p>
+          <p><strong>Customer:</strong> ${order.customer_name}</p>
+          <p><strong>Waiter:</strong> ${order.waiter_name || 'N/A'}</p>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Qty</th>
+              <th>Price</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${order.items.map(item => `
+              <tr>
+                <td>${item.dish_name || item.name}</td>
+                <td>${item.quantity}</td>
+                <td>₹${item.price.toFixed(2)}</td>
+                <td>₹${(item.price * item.quantity).toFixed(2)}</td>
+              </tr>
+            `).join('')}
+            <tr>
+              <td colspan="3" align="right"><strong>Subtotal:</strong></td>
+              <td>₹${billDetails.subtotal.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td colspan="3" align="right"><strong>Tax (18%):</strong></td>
+              <td>₹${billDetails.tax.toFixed(2)}</td>
+            </tr>
+            <tr class="total-row">
+              <td colspan="3" align="right"><strong>Total:</strong></td>
+              <td>₹${billDetails.total.toFixed(2)}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="text-align: center; margin-top: 30px;">
+          <p>Thank you for dining with us!</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '', 'height=600,width=800');
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
+  // ✅ Handle Bill Payment - WITH API INTEGRATION
+  const handleBillPayment = async () => {
+    if (!billTable) return;
+
+    const tableOrder = getTableOrder(billTable.number);
+    
+    if (!tableOrder || !tableOrder.items || tableOrder.items.length === 0) {
+      alert('⚠️ No active order found for this table!');
+      return;
+    }
+
+    try {
+      setBillLoading(true);
+      const billDetails = calculateBillDetails(tableOrder);
+
+      console.log('💳 Processing payment for Table #' + billTable.number);
+
+      // 1️⃣ Create Bill in Supabase
+      const newBill = await createBill({
+        order_id: tableOrder.order_id,
+        total_amount: billDetails.total,
+        payment_status: 'pending'
+      });
+
+      console.log('✅ Bill created:', newBill.bill_id);
+
+      // 2️⃣ Process Payment
+      const paymentResult = await processPaymentTransaction({
+        bill_id: newBill.bill_id,
+        amount: billDetails.total,
+        payment_method: 'cash'  // Default to cash, can be changed
+      });
+
+      console.log('✅ Payment processed:', paymentResult);
+
+      // 3️⃣ Mark Bill as Paid
+      await markBillAsPaidContext(newBill.bill_id);
+
+      // 4️⃣ Change table to available
       changeTableStatus(billTable.id, 'available');
-      alert(`Bill paid for Table #${billTable.number}. Table is now available!`);
+
+      // Success notification
+      alert(
+        `✅ Payment Successful!\n\n` +
+        `Bill #${newBill.bill_id}\n` +
+        `Table #${billTable.number}\n` +
+        `Amount: ₹${billDetails.total.toFixed(2)}\n\n` +
+        `Table is now available!`
+      );
+
       setShowBillModal(false);
       setBillTable(null);
+
+    } catch (error) {
+      console.error('❌ Error processing payment:', error);
+      alert(`❌ Payment failed: ${error.message}`);
+    } finally {
+      setBillLoading(false);
     }
   };
 
@@ -86,31 +299,15 @@ const ManageTable = () => {
   };
 
   const changeTableStatus = (tableId, newStatus) => {
-    setTables(tables.map(table => 
-      table.id === tableId ? { ...table, status: newStatus } : table
-    ));
+    setTables(prevTables =>
+      prevTables.map(table => 
+        table.id === tableId ? { ...table, status: newStatus } : table
+      )
+    );
+    console.log(`✅ Table ${tableId} status changed to: ${newStatus}`);
   };
 
   const filteredTables = tables.filter(table => table.area === selectedArea);
-
-  const handleAddReservation = () => {
-    if (newReservation.name && newReservation.table) {
-      changeTableStatus(newReservation.table, 'reserved');
-      
-      setNewReservation({
-        name: '',
-        time: '',
-        guests: 2,
-        phone: '',
-        table: null
-      });
-      
-      setShowReservationModal(false);
-      alert(`Reservation added for ${newReservation.name}`);
-    } else {
-      alert('Please fill in all required fields');
-    }
-  };
 
   return (
     <div className="manage-table-page-fullwidth">
@@ -134,10 +331,6 @@ const ManageTable = () => {
           <div className="legend-item">
             <div className="legend-dot available"></div>
             <span>Available</span>
-          </div>
-          <div className="legend-item">
-            <div className="legend-dot reserved"></div>
-            <span>Reserved</span>
           </div>
           <div className="legend-item">
             <div className="legend-dot occupied"></div>
@@ -167,7 +360,7 @@ const ManageTable = () => {
 
                 <div className="table-center">
                   <div className="table-icon">
-                    {table.status === 'occupied' ? '🍽️' : table.status === 'reserved' ? '🔒' : '🟢'}
+                    {table.status === 'occupied' ? '🍽️' : '🟢'}
                   </div>
                   <div className="table-info">
                     <h3>Table #{table.number}</h3>
@@ -188,44 +381,31 @@ const ManageTable = () => {
                 <div className="table-quick-actions">
                   {table.status === 'available' && (
                     <button 
-                      className="quick-action-btn reserve"
+                      className="quick-action-btn status-available"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setNewReservation({...newReservation, table: table.id});
-                        setShowReservationModal(true);
+                        handleAvailableClick(table);
                       }}
                     >
-                      Reserve
-                    </button>
-                  )}
-                  
-                  {table.status === 'reserved' && (
-                    <button 
-                      className="quick-action-btn take-order"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleTakeOrder(table);
-                      }}
-                    >
-                      <ShoppingCart size={16} />
-                      Take Order
+                      <Check size={16} />
+                      Available
                     </button>
                   )}
                   
                   {table.status === 'occupied' && (
-                    <>
+                    <div className="occupied-actions">
                       <button 
-                        className="quick-action-btn take-order"
+                        className="quick-action-btn status-occupied"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleTakeOrder(table);
+                          handleOccupiedClick(table);
                         }}
                       >
                         <ShoppingCart size={16} />
-                        Take Order
+                        Occupied
                       </button>
                       <button 
-                        className="quick-action-btn generate-bill"
+                        className="quick-action-btn generate-bill-btn"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleGenerateBill(table);
@@ -234,7 +414,7 @@ const ManageTable = () => {
                         <Receipt size={16} />
                         Bill
                       </button>
-                    </>
+                    </div>
                   )}
                 </div>
               </div>
@@ -243,15 +423,15 @@ const ManageTable = () => {
         </div>
       </div>
 
-      {/* Add Reservation Modal */}
-      {showReservationModal && (
-        <div className="modal-overlay" onClick={() => setShowReservationModal(false)}>
+      {/* Guest Count Modal */}
+      {showGuestModal && tempTable && (
+        <div className="modal-overlay" onClick={() => setShowGuestModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Add New Reservation</h2>
+              <h2>👥 Number of Guests - Table #{tempTable.number}</h2>
               <button 
                 className="modal-close-btn"
-                onClick={() => setShowReservationModal(false)}
+                onClick={() => setShowGuestModal(false)}
               >
                 <X size={24} />
               </button>
@@ -259,133 +439,187 @@ const ManageTable = () => {
 
             <div className="modal-body">
               <div className="form-group">
-                <label>Customer Name *</label>
+                <label>How many guests?</label>
                 <input 
-                  type="text"
-                  placeholder="Enter customer name"
-                  value={newReservation.name}
-                  onChange={(e) => setNewReservation({...newReservation, name: e.target.value})}
+                  type="number"
+                  min="1"
+                  max={tempTable.capacity}
+                  value={guestCount}
+                  onChange={(e) => setGuestCount(parseInt(e.target.value) || 1)}
+                  style={{ fontSize: '18px', textAlign: 'center' }}
                 />
-              </div>
-
-              <div className="form-group">
-                <label>Phone Number</label>
-                <input 
-                  type="tel"
-                  placeholder="+84 xxx xxx xxx"
-                  value={newReservation.phone}
-                  onChange={(e) => setNewReservation({...newReservation, phone: e.target.value})}
-                />
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Number of Guests *</label>
-                  <input 
-                    type="number"
-                    min="1"
-                    max="20"
-                    value={newReservation.guests}
-                    onChange={(e) => setNewReservation({...newReservation, guests: parseInt(e.target.value)})}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Table Number *</label>
-                  <select 
-                    value={newReservation.table || ''}
-                    onChange={(e) => setNewReservation({...newReservation, table: parseInt(e.target.value)})}
-                  >
-                    <option value="">Select Table</option>
-                    {tables.filter(t => t.status === 'available').map(table => (
-                      <option key={table.id} value={table.id}>
-                        Table #{table.number} ({table.capacity} seats) - {table.area}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label>Reservation Time *</label>
-                <input 
-                  type="time"
-                  value={newReservation.time}
-                  onChange={(e) => setNewReservation({...newReservation, time: e.target.value})}
-                />
+                <p style={{ 
+                  fontSize: '13px', 
+                  color: '#6B7280', 
+                  marginTop: '8px',
+                  textAlign: 'center'
+                }}>
+                  Table capacity: {tempTable.capacity} guests
+                </p>
               </div>
             </div>
 
             <div className="modal-footer">
               <button 
                 className="btn-cancel"
-                onClick={() => setShowReservationModal(false)}
+                onClick={() => setShowGuestModal(false)}
               >
                 Cancel
               </button>
               <button 
                 className="btn-confirm"
-                onClick={handleAddReservation}
-              >
-                Add Reservation
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Bill Modal */}
-      {showBillModal && billTable && (
-        <div className="modal-overlay" onClick={() => setShowBillModal(false)}>
-          <div className="modal-content bill-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>🧾 Bill - Table #{billTable.number}</h2>
-              <button 
-                className="modal-close-btn"
-                onClick={() => setShowBillModal(false)}
-              >
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="modal-body">
-              <div className="bill-summary">
-                <h3>Order Summary</h3>
-                <div className="bill-item">
-                  <span>Subtotal:</span>
-                  <span>₹850.00</span>
-                </div>
-                <div className="bill-item">
-                  <span>Tax (18%):</span>
-                  <span>₹153.00</span>
-                </div>
-                <div className="bill-item total">
-                  <span><strong>Total:</strong></span>
-                  <span><strong>₹1,003.00</strong></span>
-                </div>
-              </div>
-            </div>
-
-            <div className="modal-footer">
-              <button 
-                className="btn-cancel"
-                onClick={() => setShowBillModal(false)}
-              >
-                Cancel
-              </button>
-              <button 
-                className="btn-confirm"
-                onClick={handleBillPayment}
+                onClick={handleConfirmGuests}
+                disabled={guestCount < 1 || guestCount > tempTable.capacity}
               >
                 <Check size={18} />
-                Mark as Paid
+                Proceed to Order
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ✅ Take Order Modal (NEW) */}
+      {/* ✅ Bill Modal - WITH API INTEGRATION */}
+      {showBillModal && billTable && (() => {
+        const tableOrder = getTableOrder(billTable.number);
+        const billDetails = calculateBillDetails(tableOrder);
+        
+        return (
+          <div className="modal-overlay" onClick={() => setShowBillModal(false)}>
+            <div className="modal-content details-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <div>
+                  <h2>🧾 Invoice - Table #{billTable.number}</h2>
+                  <p>Order details and billing information</p>
+                </div>
+                <button 
+                  className="modal-close-btn"
+                  onClick={() => setShowBillModal(false)}
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="modal-body">
+                {tableOrder && tableOrder.items && tableOrder.items.length > 0 ? (
+                  <>
+                    {/* Bill Info Section */}
+                    <div className="bill-info-section">
+                      <div className="info-row">
+                        <span className="info-label">Date:</span>
+                        <span className="info-value">{formatDate(tableOrder.order_date)}</span>
+                      </div>
+                      <div className="info-row">
+                        <span className="info-label">Table:</span>
+                        <span className="info-value">Table {tableOrder.table_number}</span>
+                      </div>
+                      <div className="info-row">
+                        <span className="info-label">Customer:</span>
+                        <span className="info-value">{tableOrder.customer_name}</span>
+                      </div>
+                      <div className="info-row">
+                        <span className="info-label">Waiter:</span>
+                        <span className="info-value">{tableOrder.waiter_name || 'N/A'}</span>
+                      </div>
+                    </div>
+
+                    {/* Items Table */}
+                    <div className="bill-items-table">
+                      <h4>Order Items</h4>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th>Price</th>
+                            <th>Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {tableOrder.items.map((item, index) => (
+                            <tr key={index}>
+                              <td>
+                                <div>
+                                  <strong>{item.dish_name || item.name}</strong>
+                                </div>
+                              </td>
+                              <td>{item.quantity}</td>
+                              <td>₹{item.price.toFixed(2)}</td>
+                              <td>₹{(item.price * item.quantity).toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr>
+                            <td colSpan="3" align="right"><strong>Subtotal:</strong></td>
+                            <td>₹{billDetails.subtotal.toFixed(2)}</td>
+                          </tr>
+                          <tr>
+                            <td colSpan="3" align="right"><strong>Tax (18% GST):</strong></td>
+                            <td>₹{billDetails.tax.toFixed(2)}</td>
+                          </tr>
+                          <tr className="total-row">
+                            <td colSpan="3" align="right"><strong>Total Amount:</strong></td>
+                            <td><strong>₹{billDetails.total.toFixed(2)}</strong></td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ 
+                    textAlign: 'center', 
+                    padding: '60px 20px',
+                    color: '#6B7280'
+                  }}>
+                    <Receipt size={64} style={{ marginBottom: '16px', opacity: 0.3 }} />
+                    <h3>No Active Order</h3>
+                    <p>This table doesn't have any active orders yet</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="modal-footer">
+                <button 
+                  className="btn-secondary" 
+                  onClick={() => setShowBillModal(false)}
+                  disabled={billLoading}
+                >
+                  Close
+                </button>
+                {tableOrder && tableOrder.items && tableOrder.items.length > 0 && (
+                  <>
+                    <button 
+                      className="btn-primary"
+                      onClick={() => handlePrintBill(tableOrder)}
+                      disabled={billLoading}
+                    >
+                      <Download size={18} />
+                      Print Bill
+                    </button>
+                    <button 
+                      className="btn-confirm"
+                      onClick={handleBillPayment}
+                      disabled={billLoading}
+                    >
+                      {billLoading ? (
+                        <>⏳ Processing...</>
+                      ) : (
+                        <>
+                          <Check size={18} />
+                          Mark as Paid
+                        </>
+                      )}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Take Order Modal */}
       {showTakeOrderModal && orderTable && (
         <TakeOrderModal 
           table={orderTable}

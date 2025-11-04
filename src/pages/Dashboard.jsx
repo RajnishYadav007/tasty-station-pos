@@ -1,6 +1,7 @@
 // src/pages/Dashboard/Dashboard.jsx
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -14,28 +15,206 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Plus,
+  Eye,
+  UserPlus,
+  BarChart3
 } from 'lucide-react';
+
+// ✅ Import APIs
+import { getOrders, getOrderStatistics, getTodaysOrders } from '../api/orderApi';
+import { getTotalRevenue, getTodaysRevenue, getBillStatistics } from '../api/billApi';
+import { getDishes } from '../api/dishApi';
+import { getUsers } from '../api/userApi';
+import { getOrderDetailsByOrderId } from '../api/orderDetailsApi';
+
 import './Dashboard.css';
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  
+  // ✅ State for API data
+  const [stats, setStats] = useState({
+    totalRevenue: 0,
+    todayRevenue: 0,
+    totalOrders: 0,
+    todayOrders: 0,
+    uniqueCustomers: 0,
+    activeNow: 0,
+    pendingActions: 0
+  });
+  const [recentOrders, setRecentOrders] = useState([]);
+  const [topItems, setTopItems] = useState([]);
 
-  // Update time every minute
+  // Update time every second
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
-    }, 60000);
+    }, 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Stats data with more details
+  // ✅ Load all dashboard data
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch all data in parallel
+      const [
+        ordersData,
+        orderStats,
+        todaysOrdersData,
+        totalRevenue,
+        todayRevenue,
+        usersData,
+        dishesData
+      ] = await Promise.all([
+        getOrders(),
+        getOrderStatistics(),
+        getTodaysOrders(),
+        getTotalRevenue(),
+        getTodaysRevenue(),
+        getUsers(),
+        getDishes()
+      ]);
+
+      // Calculate statistics
+      const calculatedStats = {
+        totalRevenue: totalRevenue || 0,
+        todayRevenue: todayRevenue || 0,
+        totalOrders: ordersData.length,
+        todayOrders: todaysOrdersData.length,
+        uniqueCustomers: usersData.length,
+        activeNow: todaysOrdersData.filter(o => o.status === 'pending').length,
+        pendingActions: orderStats.pending || 0
+      };
+
+      setStats(calculatedStats);
+
+      // Process recent orders
+      await processRecentOrders(ordersData.slice(0, 5));
+
+      // Calculate top selling items
+      await calculateTopItems(ordersData);
+
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ Process recent orders with details
+  const processRecentOrders = async (orders) => {
+    try {
+      const processedOrders = await Promise.all(
+        orders.map(async (order) => {
+          try {
+            // Get order details
+            const details = await getOrderDetailsByOrderId(order.order_id);
+            
+            // Calculate total
+            const total = details.reduce((sum, item) => 
+              sum + (parseFloat(item.price) * parseInt(item.quantity)), 0
+            );
+
+            // Calculate time ago
+            const now = new Date();
+            const created = new Date(order.order_date);
+            const diffMinutes = Math.floor((now - created) / 60000);
+            let timeAgo = 'Just now';
+            
+            if (diffMinutes >= 1 && diffMinutes < 60) {
+              timeAgo = `${diffMinutes} mins ago`;
+            } else if (diffMinutes >= 60) {
+              const hours = Math.floor(diffMinutes / 60);
+              timeAgo = `${hours} hour${hours > 1 ? 's' : ''} ago`;
+            }
+
+            return {
+              id: order.order_id.toString().slice(-5),
+              table: 'Table 1', // You can link with table data if needed
+              items: details.length,
+              amount: total,
+              status: order.status === 'completed' ? 'Completed' : order.status === 'pending' ? 'Pending' : 'In Progress',
+              time: timeAgo,
+              customer: `Guest - Table ${order.order_id}`
+            };
+          } catch (err) {
+            console.error('Error processing order:', err);
+            return null;
+          }
+        })
+      );
+
+      setRecentOrders(processedOrders.filter(o => o !== null));
+    } catch (error) {
+      console.error('Error processing recent orders:', error);
+    }
+  };
+
+  // ✅ Calculate top selling items from orders
+  const calculateTopItems = async (orders) => {
+    try {
+      const itemCounts = {};
+      
+      // Fetch order details for all orders
+      await Promise.all(
+        orders.map(async (order) => {
+          try {
+            const details = await getOrderDetailsByOrderId(order.order_id);
+            
+            details.forEach(item => {
+              const dishId = item.dish_id;
+              if (!itemCounts[dishId]) {
+                itemCounts[dishId] = {
+                  id: dishId,
+                  name: `Dish #${dishId}`, // You can fetch dish name from Dish table
+                  count: 0,
+                  revenue: 0
+                };
+              }
+              itemCounts[dishId].count += parseInt(item.quantity);
+              itemCounts[dishId].revenue += parseFloat(item.price) * parseInt(item.quantity);
+            });
+          } catch (err) {
+            console.error('Error fetching order details:', err);
+          }
+        })
+      );
+
+      // Sort and get top 4
+      const topItemsArray = Object.values(itemCounts)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 4)
+        .map(item => ({
+          id: item.id,
+          name: item.name,
+          orders: item.count,
+          revenue: Math.round(item.revenue),
+          trend: 'up'
+        }));
+
+      setTopItems(topItemsArray);
+    } catch (error) {
+      console.error('Error calculating top items:', error);
+    }
+  };
+
+  // ✅ Stats data with real values
   const statsData = [
     { 
       id: 1, 
       title: 'Total Revenue', 
-      value: '$45,231', 
+      value: `₹${Math.round(stats.totalRevenue).toLocaleString()}`, 
       change: '+20.1%', 
       trending: 'up', 
       icon: DollarSign, 
@@ -46,111 +225,63 @@ const Dashboard = () => {
     { 
       id: 2, 
       title: 'Total Orders', 
-      value: '1,234', 
+      value: stats.totalOrders.toLocaleString(), 
       change: '+15.3%', 
       trending: 'up', 
       icon: ShoppingCart, 
       bgColor: '#EFF6FF',
       iconColor: '#3B82F6',
-      description: '128 today'
+      description: `${stats.todayOrders} today`
     },
     { 
       id: 3, 
       title: 'Total Customers', 
-      value: '856', 
+      value: stats.uniqueCustomers, 
       change: '-2.5%', 
       trending: 'down', 
       icon: Users, 
       bgColor: '#FEF2F2',
       iconColor: '#EF4444',
-      description: '45 active now'
-    },
-    { 
-      id: 4, 
-      title: 'Total Reservations', 
-      value: '145', 
-      change: '+8.2%', 
-      trending: 'up', 
-      icon: Calendar, 
-      bgColor: '#F5F3FF',
-      iconColor: '#A855F7',
-      description: '12 upcoming'
+      description: `${stats.activeNow} active now`
     }
   ];
 
-  // Recent orders with more details
-  const recentOrders = [
-    { 
-      id: 'F0030', 
-      table: '04', 
-      items: 5, 
-      amount: 72.00, 
-      status: 'Completed', 
-      time: '2 mins ago',
-      customer: 'John Doe',
-      paymentMethod: 'Card'
-    },
-    { 
-      id: 'F0029', 
-      table: '07', 
-      items: 3, 
-      amount: 45.00, 
-      status: 'In Progress', 
-      time: '5 mins ago',
-      customer: 'Sarah Smith',
-      paymentMethod: 'Cash'
-    },
-    { 
-      id: 'F0028', 
-      table: '12', 
-      items: 8, 
-      amount: 125.00, 
-      status: 'Completed', 
-      time: '12 mins ago',
-      customer: 'Mike Johnson',
-      paymentMethod: 'Card'
-    },
-    { 
-      id: 'F0027', 
-      table: '03', 
-      items: 4, 
-      amount: 58.00, 
-      status: 'Pending', 
-      time: '18 mins ago',
-      customer: 'Emily Davis',
-      paymentMethod: 'Card'
-    },
-    { 
-      id: 'F0026', 
-      table: '15', 
-      items: 6, 
-      amount: 95.00, 
-      status: 'Completed', 
-      time: '25 mins ago',
-      customer: 'Robert Brown',
-      paymentMethod: 'Cash'
-    },
-  ];
-
-  // Quick actions
+  // Quick actions with navigation
   const quickActions = [
-    { id: 1, title: 'New Order', icon: '➕', color: '#14B8A6' },
-    { id: 2, title: 'View Tables', icon: '🪑', color: '#3B82F6' },
-    { id: 3, title: 'Add Customer', icon: '👤', color: '#A855F7' },
-    { id: 4, title: 'Reports', icon: '📊', color: '#F59E0B' }
-  ];
-
-  // Top selling items
-  const topItems = [
-    { id: 1, name: 'Grilled Salmon', orders: 45, revenue: 675, trend: 'up' },
-    { id: 2, name: 'Beef Steak', orders: 38, revenue: 1140, trend: 'up' },
-    { id: 3, name: 'Pasta Carbonara', orders: 32, revenue: 384, trend: 'down' },
-    { id: 4, name: 'Caesar Salad', orders: 28, revenue: 252, trend: 'up' },
+    { 
+      id: 1, 
+      title: 'New Order', 
+      icon: Plus, 
+      color: '#14B8A6',
+      action: () => navigate('/manage-table')
+    },
+    { 
+      id: 2, 
+      title: 'View Tables', 
+      icon: Eye, 
+      color: '#3B82F6',
+      action: () => navigate('/manage-table')
+    },
+    { 
+      id: 3, 
+      title: 'Add Customer', 
+      icon: UserPlus, 
+      color: '#A855F7',
+      action: () => navigate('/customers')
+    },
+    { 
+      id: 4, 
+      title: 'Reports', 
+      icon: BarChart3, 
+      color: '#F59E0B',
+      action: () => navigate('/customers')
+    }
   ];
 
   // Handle refresh
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
+    await loadDashboardData();
     setTimeout(() => {
       setRefreshing(false);
     }, 1000);
@@ -169,6 +300,16 @@ const Dashboard = () => {
         return '';
     }
   };
+
+  if (loading) {
+    return (
+      <div className="dashboard-container">
+        <div style={{ textAlign: 'center', padding: '60px', color: '#666' }}>
+          Loading dashboard...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-container">
@@ -243,18 +384,20 @@ const Dashboard = () => {
       <div className="quick-actions-section">
         <h2>Quick Actions</h2>
         <div className="quick-actions-grid">
-          {quickActions.map(action => (
-            <button 
-              key={action.id} 
-              className="quick-action-btn"
-              style={{ borderColor: action.color }}
-            >
-              <span className="action-icon" style={{ color: action.color }}>
-                {action.icon}
-              </span>
-              <span>{action.title}</span>
-            </button>
-          ))}
+          {quickActions.map(action => {
+            const ActionIcon = action.icon;
+            return (
+              <button 
+                key={action.id} 
+                className="quick-action-btn"
+                style={{ borderColor: action.color }}
+                onClick={action.action}
+              >
+                <ActionIcon size={20} style={{ color: action.color }} />
+                <span>{action.title}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -264,40 +407,50 @@ const Dashboard = () => {
         <div className="dashboard-card recent-orders-card">
           <div className="card-header">
             <h2>Recent Orders</h2>
-            <button className="view-all-btn">View All</button>
+            <button className="view-all-btn" onClick={() => navigate('/manage-table')}>
+              View All
+            </button>
           </div>
           
           <div className="orders-table-container">
-            <table className="orders-table">
-              <thead>
-                <tr>
-                  <th>Order ID</th>
-                  <th>Customer</th>
-                  <th>Table</th>
-                  <th>Items</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                  <th>Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentOrders.map(order => (
-                  <tr key={order.id} className="order-row">
-                    <td className="order-id">#{order.id}</td>
-                    <td className="customer-name">{order.customer}</td>
-                    <td>Table {order.table}</td>
-                    <td>{order.items}</td>
-                    <td className="amount">${order.amount.toFixed(2)}</td>
-                    <td>
-                      <span className={`status-badge ${getStatusClass(order.status)}`}>
-                        {order.status}
-                      </span>
-                    </td>
-                    <td className="time">{order.time}</td>
+            {recentOrders.length === 0 ? (
+              <div className="empty-state">
+                <ShoppingCart size={48} />
+                <p>No orders yet</p>
+                <span>Orders will appear here once created</span>
+              </div>
+            ) : (
+              <table className="orders-table">
+                <thead>
+                  <tr>
+                    <th>Order ID</th>
+                    <th>Customer</th>
+                    <th>Table</th>
+                    <th>Items</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Time</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {recentOrders.map(order => (
+                    <tr key={order.id} className="order-row">
+                      <td className="order-id">#{order.id}</td>
+                      <td className="customer-name">{order.customer}</td>
+                      <td>{order.table}</td>
+                      <td>{order.items}</td>
+                      <td className="amount">₹{order.amount.toFixed(2)}</td>
+                      <td>
+                        <span className={`status-badge ${getStatusClass(order.status)}`}>
+                          {order.status}
+                        </span>
+                      </td>
+                      <td className="time">{order.time}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
 
@@ -305,26 +458,32 @@ const Dashboard = () => {
         <div className="dashboard-card top-items-card">
           <div className="card-header">
             <h2>Top Selling Items</h2>
-            <button className="view-all-btn">View All</button>
+            <button className="view-all-btn" onClick={() => navigate('/menu')}>
+              View All
+            </button>
           </div>
           
           <div className="top-items-list">
-            {topItems.map((item, index) => (
-              <div key={item.id} className="top-item">
-                <div className="item-rank">#{index + 1}</div>
-                <div className="item-details">
-                  <h4>{item.name}</h4>
-                  <p>{item.orders} orders • ${item.revenue}</p>
-                </div>
-                <div className={`item-trend ${item.trend}`}>
-                  {item.trend === 'up' ? (
-                    <TrendingUp size={16} />
-                  ) : (
-                    <TrendingDown size={16} />
-                  )}
-                </div>
+            {topItems.length === 0 ? (
+              <div className="empty-state">
+                <BarChart3 size={48} />
+                <p>No data yet</p>
+                <span>Top items will appear after orders</span>
               </div>
-            ))}
+            ) : (
+              topItems.map((item, index) => (
+                <div key={item.id} className="top-item">
+                  <div className="item-rank">#{index + 1}</div>
+                  <div className="item-details">
+                    <h4>{item.name}</h4>
+                    <p>{item.orders} orders • ₹{item.revenue}</p>
+                  </div>
+                  <div className={`item-trend ${item.trend}`}>
+                    <TrendingUp size={16} />
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -334,7 +493,7 @@ const Dashboard = () => {
         <div className="summary-card">
           <CheckCircle size={24} className="summary-icon success" />
           <div>
-            <h3>98.5%</h3>
+            <h3>100.0%</h3>
             <p>Order Success Rate</p>
           </div>
         </div>
@@ -342,7 +501,7 @@ const Dashboard = () => {
         <div className="summary-card">
           <Clock size={24} className="summary-icon warning" />
           <div>
-            <h3>18 mins</h3>
+            <h3>10 mins</h3>
             <p>Avg. Preparation Time</p>
           </div>
         </div>
@@ -358,7 +517,7 @@ const Dashboard = () => {
         <div className="summary-card">
           <AlertCircle size={24} className="summary-icon error" />
           <div>
-            <h3>3</h3>
+            <h3>{stats.pendingActions}</h3>
             <p>Pending Actions</p>
           </div>
         </div>

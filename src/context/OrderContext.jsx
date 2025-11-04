@@ -1,6 +1,8 @@
-// src/context/OrderContext.jsx
+// src/context/OrderContext.jsx - ✅ WITH SUPABASE STATUS UPDATE
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { getAllOrderDetailsWithOrders } from '../api/orderDetailsApi';
+import { updateOrderDetailStatus } from '../api/orderDetailsApi';
 
 const OrderContext = createContext();
 
@@ -13,195 +15,144 @@ export const useOrders = () => {
 };
 
 export const OrderProvider = ({ children }) => {
-  // Initially empty - Chef will see empty state
   const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const isUpdatingRef = useRef(false);
 
-  // Load orders from localStorage on mount
+  // ✅ Load from Supabase on mount
   useEffect(() => {
-    const savedOrders = localStorage.getItem('restaurantOrders');
-    if (savedOrders) {
-      setOrders(JSON.parse(savedOrders));
-    }
+    loadOrdersFromSupabase();
+    
+    // Auto-refresh every 5 seconds ONLY if not updating
+    const interval = setInterval(() => {
+      if (!isUpdatingRef.current) {
+        loadOrdersFromSupabase();
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, []);
 
-  // Save orders to localStorage whenever they change
-  useEffect(() => {
-    if (orders.length > 0) {
-      localStorage.setItem('restaurantOrders', JSON.stringify(orders));
+  // ✅ Load from Supabase
+  const loadOrdersFromSupabase = async () => {
+    try {
+      setLoading(true);
+      console.log('🔄 Loading from Supabase...');
+      
+      const data = await getAllOrderDetailsWithOrders();
+      
+      // Save to localStorage as backup
+      localStorage.setItem('restaurantOrders', JSON.stringify(data));
+      
+      setOrders(data);
+      console.log('✅ Loaded:', data.length, 'orders');
+    } catch (error) {
+      console.error('❌ Error loading from Supabase:', error);
+      
+      // Fallback to localStorage
+      try {
+        const saved = localStorage.getItem('restaurantOrders');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setOrders(parsed);
+          console.log('📦 Fallback to localStorage:', parsed.length);
+        }
+      } catch (e) {
+        console.error('❌ Fallback error:', e);
+      }
+    } finally {
+      setLoading(false);
     }
-  }, [orders]);
+  };
 
-  // Calculate time elapsed since order creation
+  // ✅ Update item status - WITH SUPABASE UPDATE
+  const updateItemStatus = async (orderId, itemIndex, newStatus) => {
+    console.log('🔥 Updating:', { orderId, itemIndex, newStatus });
+
+    try {
+      // ✅ STOP AUTO-REFRESH
+      isUpdatingRef.current = true;
+
+      // Find the order detail ID from current state
+      const order = orders.find(o => o.id === orderId);
+      if (!order || !order.items || !order.items[itemIndex]) {
+        throw new Error('Order or item not found');
+      }
+
+      const orderDetailId = order.items[itemIndex].order_detail_id;
+      console.log('📝 Updating order_detail_id:', orderDetailId);
+
+      // ✅ UPDATE IN SUPABASE FIRST
+      await updateOrderDetailStatus(orderDetailId, newStatus);
+      console.log('✅ Updated in Supabase');
+
+      // Update in state immediately (optimistic update)
+      setOrders(prevOrders =>
+        prevOrders.map(o => {
+          if (o.id === orderId && o.items) {
+            const updatedItems = o.items.map((item, idx) => {
+              if (idx === itemIndex) {
+                console.log('✅ Item updated:', { name: item.name, newStatus });
+                return { ...item, status: newStatus };
+              }
+              return item;
+            });
+            return { ...o, items: updatedItems };
+          }
+          return o;
+        })
+      );
+
+      // Save to localStorage
+      const updated = orders.map(o => {
+        if (o.id === orderId && o.items) {
+          return {
+            ...o,
+            items: o.items.map((item, idx) => {
+              if (idx === itemIndex) {
+                return { ...item, status: newStatus };
+              }
+              return item;
+            })
+          };
+        }
+        return o;
+      });
+
+      localStorage.setItem('restaurantOrders', JSON.stringify(updated));
+      console.log('💾 Saved to localStorage');
+
+      // ✅ Wait 2 seconds then allow refresh again
+      setTimeout(() => {
+        isUpdatingRef.current = false;
+        console.log('✅ Update complete, refresh enabled');
+      }, 2000);
+
+    } catch (error) {
+      console.error('❌ Error updating item:', error);
+      isUpdatingRef.current = false; // Re-enable on error
+      throw error;
+    }
+  };
+
+  // ✅ Calculate elapsed time
   const calculateElapsedTime = (createdAt) => {
+    if (!createdAt) return '';
     const now = new Date();
     const created = new Date(createdAt);
-    const diffMinutes = Math.floor((now - created) / 60000);
-    
-    if (diffMinutes < 1) return 'Just now';
-    if (diffMinutes === 1) return '1 min';
-    if (diffMinutes < 60) return `${diffMinutes} min`;
-    
-    const diffHours = Math.floor(diffMinutes / 60);
-    if (diffHours === 1) return '1 hour';
-    return `${diffHours} hours`;
-  };
+    const diff = Math.floor((now - created) / 1000);
 
-  // Add new order (Called from ManageTable/Waiter)
- const addOrder = (orderData) => {
-  const newOrder = {
-    id: `ORD-${Date.now()}`,
-    tableNumber: orderData.tableNumber,
-    customerName: orderData.customerName || `Table ${orderData.tableNumber}`, // ✅ Add customer name
-    items: orderData.items || [],
-    status: 'in-kitchen',
-    priority: orderData.priority || 'medium',
-    waiter: orderData.waiterName || 'Waiter',
-    createdAt: new Date().toISOString(),
-    notes: orderData.notes || '',
-    ...orderData
-  };
-
-  setOrders(prevOrders => [newOrder, ...prevOrders]);
-
-    // Show browser notification (if permission granted)
-  if (window.Notification && Notification.permission === 'granted') {
-    new Notification('🔔 New Order Received!', {
-      body: `${newOrder.customerName} - Table ${orderData.tableNumber}`,
-      icon: '🍽️'
-    });
-  }
-
-    // Play notification sound (optional)
-    try {
-      const audio = new Audio('/notification.mp3');
-      audio.play().catch(err => console.log('Audio play failed:', err));
-    } catch (err) {
-      console.log('Notification sound not available');
-    }
-
-    console.log('✅ New order added:', newOrder);
-    return newOrder;
-  };
-
-  // Update order status (Move to next stage)
-  const updateOrderStatus = (orderId, newStatus) => {
-    setOrders(prevOrders =>
-      prevOrders.map(order =>
-        order.id === orderId 
-          ? { ...order, status: newStatus, updatedAt: new Date().toISOString() } 
-          : order
-      )
-    );
-    console.log(`✅ Order ${orderId} status changed to: ${newStatus}`);
-  };
-
-  // Update entire order
-  const updateOrder = (orderId, updates) => {
-    setOrders(prevOrders =>
-      prevOrders.map(order =>
-        order.id === orderId 
-          ? { ...order, ...updates, updatedAt: new Date().toISOString() } 
-          : order
-      )
-    );
-  };
-
-  // Delete/Complete order
-  const deleteOrder = (orderId) => {
-    setOrders(prevOrders => prevOrders.filter(order => order.id !== orderId));
-    console.log(`✅ Order ${orderId} deleted`);
-  };
-
-  // Get orders by status
-  const getOrdersByStatus = (status) => {
-    return orders.filter(order => order.status === status);
-  };
-
-  // Get orders by table number
-  const getOrdersByTable = (tableNumber) => {
-    return orders.filter(order => order.tableNumber === tableNumber);
-  };
-
-  // Get order by ID
-  const getOrderById = (orderId) => {
-    return orders.find(order => order.id === orderId);
-  };
-
-  // Get status counts
-  const getStatusCounts = () => {
-    return {
-      inKitchen: orders.filter(o => o.status === 'in-kitchen').length,
-      wait: orders.filter(o => o.status === 'wait').length,
-      ready: orders.filter(o => o.status === 'ready').length,
-      served: orders.filter(o => o.status === 'served').length,
-      total: orders.length
-    };
-  };
-
-  // Clear all orders (for testing)
-  const clearAllOrders = () => {
-    setOrders([]);
-    localStorage.removeItem('restaurantOrders');
-    console.log('✅ All orders cleared');
-  };
-
-  // Add item to existing order
-  const addItemToOrder = (orderId, newItem) => {
-    setOrders(prevOrders =>
-      prevOrders.map(order =>
-        order.id === orderId
-          ? {
-              ...order,
-              items: [...order.items, newItem],
-              updatedAt: new Date().toISOString()
-            }
-          : order
-      )
-    );
-  };
-
-  // Remove item from order
-  const removeItemFromOrder = (orderId, itemIndex) => {
-    setOrders(prevOrders =>
-      prevOrders.map(order =>
-        order.id === orderId
-          ? {
-              ...order,
-              items: order.items.filter((_, index) => index !== itemIndex),
-              updatedAt: new Date().toISOString()
-            }
-          : order
-      )
-    );
-  };
-
-  // Calculate order total
-  const calculateOrderTotal = (orderId) => {
-    const order = getOrderById(orderId);
-    if (!order || !order.items) return 0;
-
-    return order.items.reduce((total, item) => {
-      const price = parseFloat(item.price) || 0;
-      const quantity = parseInt(item.quantity) || 1;
-      return total + (price * quantity);
-    }, 0);
+    if (diff < 60) return `${diff}s`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+    return `${Math.floor(diff / 3600)}h`;
   };
 
   const value = {
     orders,
-    addOrder,
-    updateOrderStatus,
-    updateOrder,
-    deleteOrder,
-    getOrdersByStatus,
-    getOrdersByTable,
-    getOrderById,
-    getStatusCounts,
-    clearAllOrders,
-    addItemToOrder,
-    removeItemFromOrder,
-    calculateOrderTotal,
-    calculateElapsedTime
+    loading,
+    updateItemStatus,
+    calculateElapsedTime,
+    refreshOrders: loadOrdersFromSupabase
   };
 
   return (
