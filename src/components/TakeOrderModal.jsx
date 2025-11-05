@@ -1,16 +1,18 @@
-// src/components/TakeOrderModal/TakeOrderModal.jsx - ✅ COMPLETE WORKING CODE
+// src/components/TakeOrderModal/TakeOrderModal.jsx - ✅ WITH ORDER REFRESH
 
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import { X, Plus, Minus, ShoppingCart, Search } from 'lucide-react';
 import './TakeOrderModal.css';
+import { sendNewOrderNotification } from '../api/notificationApi';
 
 import { getDishesWithCategory } from '../api/dishApi';
 import { getCategoriesWithDishCount } from '../api/categoryApi';
 import { addOrder } from '../api/orderApi';
 import { addMultipleOrderDetails } from '../api/orderDetailsApi';
 
-const TakeOrderModal = ({ table, onClose }) => {
+// ✅ ADD onOrderPlaced PROP
+const TakeOrderModal = ({ table, onClose, onOrderPlaced }) => {
   const [dishes, setDishes] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -168,7 +170,7 @@ const TakeOrderModal = ({ table, onClose }) => {
     return cart.reduce((total, item) => total + item.price * item.quantity, 0);
   };
 
-  // ✅ SUBMIT ORDER WITH LOADING TOAST + AUTO DISMISS
+  // ✅ UPDATED: CALL onOrderPlaced AFTER SUCCESS
   const handleSubmitOrder = async () => {
     if (cart.length === 0) {
       toast.warning('Please add items to cart', {
@@ -189,19 +191,17 @@ const TakeOrderModal = ({ table, onClose }) => {
     try {
       setSubmitting(true);
 
-      // ✅ LOADING TOAST WITH AUTO DISMISS
       const loadingToastId = toast.loading('⏳ Sending order to kitchen...', {
         position: 'top-center',
         hideProgressBar: false,
         closeOnClick: true,
       });
 
-      // ✅ AUTO DISMISS AFTER 5 SECONDS
       setTimeout(() => {
         toast.dismiss(loadingToastId);
       }, 5000);
 
-      // ✅ Step 1: Create order in database
+      // Step 1: Create order
       const orderResult = await addOrder({
         user_id: 1,
         waiter_id: 1,
@@ -229,7 +229,7 @@ const TakeOrderModal = ({ table, onClose }) => {
         throw new Error(`No order_id in response: ${JSON.stringify(orderResult)}`);
       }
 
-      // ✅ Step 2: Prepare order details
+      // Step 2: Prepare order details
       const orderDetails = cart.map(item => ({
         order_id: orderId,
         dish_id: item.dish_id,
@@ -239,18 +239,15 @@ const TakeOrderModal = ({ table, onClose }) => {
         status: 'in-kitchen'
       }));
 
-      // ✅ Step 3: Add order items to database
+      // Step 3: Add order items
       const detailsResult = await addMultipleOrderDetails(orderDetails);
 
-      // ✅ Success calculation
       const subtotal = calculateTotal();
       const tax = subtotal * 0.18;
       const total = subtotal + tax;
 
-      // ✅ DISMISS LOADING TOAST EARLY
       toast.dismiss(loadingToastId);
 
-      // ✅ SUCCESS TOAST
       toast.success(
         `🎉 Order #${orderId} Successfully sent!\n📍 Table: #${table?.number || 1}\n${cart.length} items\n💰 Total: ₹${total.toFixed(2)}`,
         {
@@ -271,7 +268,16 @@ const TakeOrderModal = ({ table, onClose }) => {
         `Total: ₹${total.toFixed(2)}`
       );
 
-      // ✅ Reset form
+     // 🔔 SEND NEW ORDER NOTIFICATION
+sendNewOrderNotification(orderId, table?.number || 1, cart.length);
+
+// ✅ CALL REFRESH CALLBACK
+if (onOrderPlaced) {
+  console.log('🔄 Calling onOrderPlaced callback...');
+  await onOrderPlaced();
+}
+
+      // Reset form
       setCart([]);
       setNotes({});
       setCustomerName('');
@@ -283,7 +289,6 @@ const TakeOrderModal = ({ table, onClose }) => {
     } catch (error) {
       console.error('Error submitting order:', error);
 
-      // ✅ ERROR TOAST
       toast.error(
         `❌ Failed to Submit Order\n${error.message}`,
         {
@@ -297,7 +302,6 @@ const TakeOrderModal = ({ table, onClose }) => {
     }
   };
 
-  // ✅ Loading state
   if (loading) {
     return (
       <div className="modal-overlay" onClick={onClose}>

@@ -6,6 +6,10 @@ import { ChefHat, Clock, AlertCircle, CheckCircle, Bell } from 'lucide-react';
 import './OrderLine.css';
 import { useOrders } from '../context/OrderContext';
 import { useBill } from '../context/BillContext';
+import { 
+  sendOrderReadyNotification,
+  sendNewOrderNotification 
+} from '../api/notificationApi';
 
 const OrderLine = () => {
   const { orders, updateItemStatus, calculateElapsedTime } = useOrders();
@@ -58,11 +62,19 @@ const OrderLine = () => {
         autoClose: 2000,
       });
 
-      // ✅ AUTO BILL ON SERVED
-      if (newStatus === 'served') {
-        console.log('🧾 Creating bill automatically...');
-        
-        const order = orders.find(o => o.id === orderId || o.order_id === orderId);
+ // ✅ SEND READY NOTIFICATION WHEN 'READY' STATUS
+if (newStatus === 'ready') {
+  const order = orders.find(o => o.id === orderId || o.order_id === orderId);
+  if (order) {
+    sendOrderReadyNotification(orderId, order.tableNumber);
+  }
+}
+
+// ✅ AUTO BILL ON SERVED
+if (newStatus === 'served') {
+  console.log('🧾 Creating bill automatically...');
+  
+  const order = orders.find(o => o.id === orderId || o.order_id === orderId);
         
         if (order && order.items && order.items.length > 0) {
           const billAmount = order.items.reduce((sum, item) => {

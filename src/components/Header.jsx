@@ -1,11 +1,28 @@
-// src/components/Header.jsx
+// src/components/Header.jsx - ✅ WITH MARK ALL READ + CLEAR ALL WORKING
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getNotifications } from '../api/notificationApi';
-import { Search, Bell, ChevronDown, LogOut, X, Trash2, ShoppingCart, CheckCircle, Clock } from 'lucide-react';
+import { getNotifications, markAllAsRead, deleteOldNotifications } from '../api/notificationApi';
+import { toast } from 'react-toastify';
+import { 
+  Search, 
+  Bell, 
+  ChevronDown, 
+  LogOut, 
+  X, 
+  Trash2, 
+  ShoppingCart, 
+  CheckCircle, 
+  Clock,
+  Users,
+  CreditCard,
+  Calendar,
+  AlertCircle,
+  Check
+} from 'lucide-react';
 import './Header.css';
+
 
 const Header = () => {
   const navigate = useNavigate();
@@ -14,7 +31,8 @@ const Header = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
 
-  // ✅ FIXED: Load notifications with auto-refresh
+
+  // ✅ LOAD NOTIFICATIONS WITH AUTO-REFRESH
   useEffect(() => {
     const loadNotifications = async () => {
       try {
@@ -30,8 +48,6 @@ const Header = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // ✅ REMOVED: Auto-save useEffect that was overwriting notifications
-  // Only manual actions (mark read, clear) will save to localStorage
 
   // ✅ Filter notifications by visibleTo field
   const getFilteredNotifications = () => {
@@ -39,30 +55,27 @@ const Header = () => {
     
     const userRole = currentUser.role.toLowerCase();
     
-    // Customer sees nothing
     if (userRole === 'customer') {
       return [];
     }
     
-    // Owner, Chef, Waiter see notifications where they are in visibleTo array
     return notifications.filter(notification => {
-      // Check if notification has visibleTo field
       if (notification.visibleTo && Array.isArray(notification.visibleTo)) {
         return notification.visibleTo.includes(userRole);
       }
-      
-      // Fallback: if no visibleTo field, show to everyone except customer
       return userRole !== 'customer';
     });
   };
 
-  // Get unread count (filtered by role)
+
+  // Get unread count
   const getUnreadCount = () => {
     const filtered = getFilteredNotifications();
     return filtered.filter(n => !n.read).length;
   };
 
-  // Add notification (expose globally) - for same-session updates
+
+  // ✅ ADD NOTIFICATION GLOBALLY
   useEffect(() => {
     window.addNotification = (type, message, orderData = {}) => {
       const newNotif = {
@@ -78,34 +91,74 @@ const Header = () => {
     };
   }, []);
 
-  // Mark as read - SAVE TO LOCALSTORAGE
+
+  // ✅ MARK AS READ
   const markAsRead = (id) => {
     const updated = notifications.map(n => 
       n.id === id ? { ...n, read: true } : n
     );
     setNotifications(updated);
-    localStorage.setItem('simpleNotifications', JSON.stringify(updated)); // ✅ Save
+    localStorage.setItem('simpleNotifications', JSON.stringify(updated));
   };
 
-  // Mark all as read - SAVE TO LOCALSTORAGE
-  const markAllAsRead = () => {
-    const filteredIds = getFilteredNotifications().map(n => n.id);
-    const updated = notifications.map(n =>
-      filteredIds.includes(n.id) ? { ...n, read: true } : n
-    );
-    setNotifications(updated);
-    localStorage.setItem('simpleNotifications', JSON.stringify(updated)); // ✅ Save
+
+  // ✅ MARK ALL AS READ - UPDATED
+  const handleMarkAllRead = async () => {
+    try {
+      // Call Supabase function
+      await markAllAsRead();
+      
+      // Update local state
+      const filteredIds = getFilteredNotifications().map(n => n.id);
+      const updated = notifications.map(n =>
+        filteredIds.includes(n.id) ? { ...n, read: true } : n
+      );
+      setNotifications(updated);
+      localStorage.setItem('simpleNotifications', JSON.stringify(updated));
+      
+      toast.success('✅ All marked as read!', {
+        position: 'bottom-right',
+        autoClose: 2000
+      });
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+      toast.error('❌ Error marking as read', {
+        position: 'bottom-right',
+        autoClose: 2000
+      });
+    }
   };
 
-  // Clear all - SAVE TO LOCALSTORAGE
-  const clearAll = () => {
-    const filteredIds = getFilteredNotifications().map(n => n.id);
-    const updated = notifications.filter(n => !filteredIds.includes(n.id));
-    setNotifications(updated);
-    localStorage.setItem('simpleNotifications', JSON.stringify(updated)); // ✅ Save
+
+  // ✅ CLEAR ALL - UPDATED
+  const clearAll = async () => {
+    try {
+      // Call Supabase function to delete old notifications
+      await deleteOldNotifications(0); // Delete all
+      
+      // Update local state
+      const filteredIds = getFilteredNotifications().map(n => n.id);
+      const updated = notifications.filter(n => !filteredIds.includes(n.id));
+      setNotifications(updated);
+      localStorage.setItem('simpleNotifications', JSON.stringify(updated));
+      
+      setShowNotifications(false);
+      
+      toast.success('✅ All notifications cleared!', {
+        position: 'bottom-right',
+        autoClose: 2000
+      });
+    } catch (error) {
+      console.error('Error clearing notifications:', error);
+      toast.error('❌ Error clearing notifications', {
+        position: 'bottom-right',
+        autoClose: 2000
+      });
+    }
   };
 
-  // Get time ago
+
+  // ✅ GET TIME AGO
   const getTimeAgo = (timestamp) => {
     const now = new Date();
     const time = new Date(timestamp);
@@ -117,17 +170,44 @@ const Header = () => {
     return time.toLocaleDateString();
   };
 
-  // Get icon
+
+  // ✅ GET ICON BY TYPE
   const getIcon = (type) => {
     switch(type) {
       case 'new-order':
         return <ShoppingCart size={20} />;
-      case 'ready':
+      case 'order-ready':
         return <CheckCircle size={20} />;
+      case 'table-occupied':
+        return <Users size={20} />;
+      case 'payment-ready':
+        return <CreditCard size={20} />;
+      case 'reservation':
+        return <Calendar size={20} />;
       default:
         return <Bell size={20} />;
     }
   };
+
+
+  // ✅ GET BACKGROUND COLOR BY TYPE
+  const getNotificationColor = (type) => {
+    switch(type) {
+      case 'new-order':
+        return { bg: '#DBEAFE', color: '#2563EB' };
+      case 'order-ready':
+        return { bg: '#D1FAE5', color: '#059669' };
+      case 'table-occupied':
+        return { bg: '#FEF3C7', color: '#D97706' };
+      case 'payment-ready':
+        return { bg: '#E9D5FF', color: '#9333EA' };
+      case 'reservation':
+        return { bg: '#FECACA', color: '#DC2626' };
+      default:
+        return { bg: '#F3F4F6', color: '#6B7280' };
+    }
+  };
+
 
   // Handle logout
   const handleLogout = () => {
@@ -138,19 +218,28 @@ const Header = () => {
     }
   };
 
-  // Get role color
+
+  // ✅ GET USER ICON
+  const getUserIcon = () => {
+    if (!currentUser) return '👤';
+    return currentUser.icon || currentUser.avatar || '👤';
+  };
+
+
+  // ✅ GET ROLE COLOR
   const getRoleColor = () => {
     if (!currentUser) return '#14B8A6';
     return currentUser.color || '#14B8A6';
   };
 
+
   if (!currentUser) return null;
+
 
   const unreadCount = getUnreadCount();
   const filteredNotifications = getFilteredNotifications();
-
-  // ✅ Hide notification button for customers
   const showNotificationButton = currentUser.role.toLowerCase() !== 'customer';
+
 
   return (
     <>
@@ -165,11 +254,14 @@ const Header = () => {
         </div>
         
         <div className="header-right">
+          {/* Role Badge with Icon */}
           <div className="role-badge" style={{ background: `${getRoleColor()}20`, color: getRoleColor() }}>
-            {currentUser.icon} {currentUser.role}
+            <span className="role-icon">{getUserIcon()}</span>
+            <span>{currentUser.role}</span>
           </div>
 
-          {/* ✅ Only show notification button if not customer */}
+
+          {/* ✅ Notification Button */}
           {showNotificationButton && (
             <button 
               className="notification-btn"
@@ -185,7 +277,7 @@ const Header = () => {
             </button>
           )}
           
-          {/* User Profile with Dropdown */}
+          {/* User Profile */}
           <div className="user-profile-container">
             <div 
               className="user-profile" 
@@ -198,7 +290,7 @@ const Header = () => {
                 className="user-avatar"
                 style={{ background: getRoleColor() }}
               >
-                {currentUser.avatar}
+                {getUserIcon()}
               </div>
               <div className="user-info">
                 <h4>{currentUser.name}</h4>
@@ -210,6 +302,7 @@ const Header = () => {
               />
             </div>
 
+
             {/* Profile Dropdown */}
             {showProfileMenu && (
               <div className="profile-dropdown">
@@ -218,17 +311,18 @@ const Header = () => {
                     className="user-avatar-large"
                     style={{ background: getRoleColor() }}
                   >
-                    {currentUser.avatar}
+                    {getUserIcon()}
                   </div>
                   <div className="user-details">
                     <h4>{currentUser.name}</h4>
                     <p>
-                      <span className="role-icon">{currentUser.icon}</span>
+                      <span className="role-icon">{getUserIcon()}</span>
                       {currentUser.role}
                     </p>
                     <span className="user-email">{currentUser.email}</span>
                   </div>
                 </div>
+
 
                 <div className="dropdown-footer">
                   <button className="logout-btn" onClick={handleLogout}>
@@ -241,7 +335,7 @@ const Header = () => {
           </div>
         </div>
 
-        {/* Overlay */}
+
         {showProfileMenu && (
           <div 
             className="dropdown-overlay" 
@@ -250,7 +344,8 @@ const Header = () => {
         )}
       </div>
 
-      {/* Notification Panel */}
+
+      {/* ✅ NOTIFICATION PANEL WITH ICONS */}
       {showNotifications && (
         <>
           <div 
@@ -305,14 +400,24 @@ const Header = () => {
               <div style={{ display: 'flex', gap: '10px' }}>
                 {filteredNotifications.length > 0 && (
                   <button 
-                    onClick={markAllAsRead}
+                    onClick={handleMarkAllRead}
                     style={{
                       padding: '6px 12px',
                       background: '#F3F4F6',
                       border: 'none',
                       borderRadius: '8px',
                       fontSize: '13px',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      fontWeight: 500,
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#DBEAFE';
+                      e.currentTarget.style.color = '#2563EB';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = '#F3F4F6';
+                      e.currentTarget.style.color = '#000';
                     }}
                   >
                     Mark all read
@@ -332,6 +437,7 @@ const Header = () => {
               </div>
             </div>
 
+
             {/* Body */}
             <div style={{
               flex: 1,
@@ -349,75 +455,126 @@ const Header = () => {
                   <span style={{ fontSize: '14px' }}>You're all caught up!</span>
                 </div>
               ) : (
-                filteredNotifications.map(notification => (
-                  <div 
-                    key={notification.id}
-                    onClick={() => markAsRead(notification.id)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: '12px',
-                      padding: '16px 20px',
-                      cursor: 'pointer',
-                      borderBottom: '1px solid #F3F4F6',
-                      background: !notification.read ? '#F0F9FF' : 'white'
-                    }}
-                  >
-                    <div style={{
-                      width: '40px',
-                      height: '40px',
-                      borderRadius: '10px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: notification.type === 'new-order' ? '#DBEAFE' : '#D1FAE5',
-                      color: notification.type === 'new-order' ? '#2563EB' : '#059669'
-                    }}>
-                      {getIcon(notification.type)}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <p style={{
-                        fontSize: '14px',
-                        margin: '0 0 4px 0',
-                        fontWeight: 500
-                      }}>
-                        {notification.message}
-                      </p>
-                      <span style={{
+                filteredNotifications.map(notification => {
+                  const colors = getNotificationColor(notification.type);
+                  return (
+                    <div 
+                      key={notification.id}
+                      onClick={() => markAsRead(notification.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '12px',
+                        padding: '16px 20px',
+                        cursor: 'pointer',
+                        borderBottom: '1px solid #F3F4F6',
+                        background: !notification.read ? '#F0F9FF' : 'white',
+                        transition: 'background 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = !notification.read ? '#F0F9FF' : 'white'}
+                    >
+                      {/* ✅ ICON WITH COLOR */}
+                      <div style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '10px',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '4px',
-                        fontSize: '12px',
-                        color: '#6B7280'
+                        justifyContent: 'center',
+                        background: colors.bg,
+                        color: colors.color,
+                        flexShrink: 0
                       }}>
-                        <Clock size={12} />
-                        {getTimeAgo(notification.timestamp)}
-                      </span>
+                        {getIcon(notification.type)}
+                      </div>
+
+
+                      <div style={{ flex: 1 }}>
+                        <p style={{
+                          fontSize: '14px',
+                          margin: '0 0 4px 0',
+                          fontWeight: 500,
+                          color: '#111827'
+                        }}>
+                          {notification.message}
+                        </p>
+                        <span style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontSize: '12px',
+                          color: '#6B7280'
+                        }}>
+                          <Clock size={12} />
+                          {getTimeAgo(notification.timestamp)}
+                        </span>
+                      </div>
+
+
+                      {/* ✅ UNREAD INDICATOR */}
+                      {!notification.read && (
+                        <div style={{
+                          width: '8px',
+                          height: '8px',
+                          background: '#3B82F6',
+                          borderRadius: '50%',
+                          marginTop: '6px',
+                          flexShrink: 0
+                        }} />
+                      )}
                     </div>
-                    {!notification.read && (
-                      <div style={{
-                        width: '8px',
-                        height: '8px',
-                        background: '#3B82F6',
-                        borderRadius: '50%',
-                        marginTop: '6px'
-                      }} />
-                    )}
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
+
 
             {/* Footer */}
             {filteredNotifications.length > 0 && (
               <div style={{
                 padding: '16px 20px',
-                borderTop: '1px solid #E5E7EB'
+                borderTop: '1px solid #E5E7EB',
+                display: 'flex',
+                gap: '10px'
               }}>
+                {/* Mark All Read Button */}
                 <button 
-                  onClick={() => { clearAll(); setShowNotifications(false); }}
+                  onClick={handleMarkAllRead}
                   style={{
-                    width: '100%',
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    padding: '10px',
+                    background: '#DBEAFE',
+                    color: '#2563EB',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#2563EB';
+                    e.currentTarget.style.color = 'white';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#DBEAFE';
+                    e.currentTarget.style.color = '#2563EB';
+                  }}
+                >
+                  <Check size={16} />
+                  Mark All
+                </button>
+
+                {/* Clear All Button */}
+                <button 
+                  onClick={clearAll}
+                  style={{
+                    flex: 1,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -428,8 +585,17 @@ const Header = () => {
                     border: 'none',
                     borderRadius: '8px',
                     fontSize: '14px',
-                    fontWeight: 600,
-                    cursor: 'pointer'
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#DC2626';
+                    e.currentTarget.style.color = 'white';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#FEE2E2';
+                    e.currentTarget.style.color = '#DC2626';
                   }}
                 >
                   <Trash2 size={16} />
@@ -443,5 +609,6 @@ const Header = () => {
     </>
   );
 };
+
 
 export default Header;
