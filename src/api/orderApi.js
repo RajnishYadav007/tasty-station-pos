@@ -105,7 +105,7 @@ export async function getOrdersByStatus(status) {
 
 // Get pending orders
 export async function getPendingOrders() {
-  return await getOrdersByStatus('pending');
+  return await getOrdersByStatus('in-kitchen');
 }
 
 // Get completed orders
@@ -155,7 +155,7 @@ export async function getTodaysOrders() {
   return data;
 }
 
-// ✅ Add new order - RETURNS ARRAY (CRITICAL FIX)
+// ✅ Add new order - RETURNS ARRAY
 export async function addOrder(orderData) {
   console.log('📝 API: Creating order with data:', orderData);
 
@@ -165,7 +165,7 @@ export async function addOrder(orderData) {
       user_id: orderData.user_id,
       waiter_id: orderData.waiter_id || null,
       order_date: orderData.order_date || new Date().toISOString(),
-      status: orderData.status || 'pending',
+      status: orderData.status || 'in-kitchen',
       table_number: orderData.table_number || null,
       waiter_name: orderData.waiter_name || 'Unknown',
       customer_name: orderData.customer_name || 'Guest'
@@ -178,7 +178,7 @@ export async function addOrder(orderData) {
   }
 
   console.log('✅ Order created in DB:', data);
-  return data;  // ✅ RETURN ARRAY - NOT data[0]!
+  return data;  // ✅ RETURN ARRAY!
 }
 
 // Update order
@@ -308,10 +308,11 @@ export async function getOrderStatistics() {
     const stats = {
       total: allOrders.length,
       today: todaysOrders.length,
-      pending: allOrders.filter(o => o.status === 'pending').length,
+      pending: allOrders.filter(o => o.status === 'in-kitchen').length,
+      ready: allOrders.filter(o => o.status === 'ready').length,
       completed: allOrders.filter(o => o.status === 'completed').length,
       cancelled: allOrders.filter(o => o.status === 'cancelled').length,
-      todayPending: todaysOrders.filter(o => o.status === 'pending').length,
+      todayPending: todaysOrders.filter(o => o.status === 'in-kitchen').length,
       todayCompleted: todaysOrders.filter(o => o.status === 'completed').length
     };
 

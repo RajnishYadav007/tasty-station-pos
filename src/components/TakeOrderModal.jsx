@@ -33,10 +33,6 @@ const TakeOrderModal = ({ table, onClose, onOrderPlaced }) => {
     try {
       setLoading(true);
 
-      toast.info('Loading menu...', {
-        position: 'bottom-center',
-        autoClose: 1500,
-      });
 
       const categoriesData = await getCategoriesWithDishCount();
       
@@ -69,10 +65,7 @@ const TakeOrderModal = ({ table, onClose, onOrderPlaced }) => {
 
       setDishes(transformedDishes);
 
-      toast.success(`${transformedDishes.length} dishes available!`, {
-        position: 'bottom-center',
-        autoClose: 2000,
-      });
+     
 
     } catch (error) {
       console.error('Error loading dishes:', error);

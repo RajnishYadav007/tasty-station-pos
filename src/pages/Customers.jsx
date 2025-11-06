@@ -65,10 +65,7 @@ const Customers = () => {
   useEffect(() => {
     try {
       loadBills();
-      toast.info('📊 Loading bills...', {
-        position: 'bottom-left',
-        autoClose: 1500,
-      });
+ 
     } catch (err) {
       toast.error('Failed to load bills', {
         position: 'top-right',
