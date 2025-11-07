@@ -1,117 +1,104 @@
-// src/api/waiterApi.js
+// src/api/waiterApi.js - ✅ WITH CREATE WAITER
 
 import { supabase } from './supabaseClient';
 
-// Get all waiters
-export async function getWaiters() {
-  const { data, error } = await supabase
-    .from('Waiter')
-    .select('*')
-    .order('waiter_id', { ascending: false });
-  
-  if (error) {
-    console.error('Error fetching waiters:', error);
-    throw error;
-  }
-  return data;
-}
+// ✅ EXISTING LOGIN
+export const waiterAPI = {
+  login: async (email, password) => {
+    try {
+      console.log('🍽️ Waiter login attempt:', email);
+      
+      const { data, error } = await supabase
+        .from('Waiter')
+        .select('*')
+        .eq('email', email)
+        .eq('password', password)
+        .single();
 
-// Get waiter by ID
-export async function getWaiterById(waiterId) {
-  const { data, error } = await supabase
-    .from('Waiter')
-    .select('*')
-    .eq('waiter_id', waiterId)
-    .single();
-  
-  if (error) {
-    console.error('Error fetching waiter:', error);
-    throw error;
-  }
-  return data;
-}
+      if (error || !data) {
+        return {
+          success: false,
+          message: '❌ Invalid Waiter credentials'
+        };
+      }
 
-// Get waiter by email
-export async function getWaiterByEmail(email) {
-  const { data, error } = await supabase
-    .from('Waiter')
-    .select('*')
-    .eq('email', email)
-    .single();
-  
-  if (error) {
-    console.error('Error fetching waiter:', error);
-    throw error;
+      console.log('✅ Waiter login success');
+      return {
+        success: true,
+        user: {
+          id: data.waiter_id,
+          name: data.name,
+          email: data.email,
+          phone: data.contact,
+          role: 'Waiter',
+          permissions: ['tables', 'orders'],
+          defaultRoute: '/manage-table'
+        }
+      };
+    } catch (error) {
+      console.error('❌ Waiter login error:', error);
+      return {
+        success: false,
+        message: '❌ Login error: ' + error.message
+      };
+    }
   }
-  return data;
-}
+};
 
-// Add waiter
-export async function addWaiter(waiterData) {
-  const { data, error } = await supabase
-    .from('Waiter')
-    .insert([waiterData])
-    .select();
-  
-  if (error) {
-    console.error('Error adding waiter:', error);
-    throw error;
-  }
-  return data;
-}
+// ✅ NEW - CREATE WAITER (by Admin)
+export const createWaiter = async (waiterData) => {
+  try {
+    console.log('➕ Creating waiter:', waiterData.name);
+    
+    const { data, error } = await supabase
+      .from('Waiter')
+      .insert([{
+        name: waiterData.name,
+        email: waiterData.email,
+        password: waiterData.password,
+        contact: waiterData.phone,
+        created_at: new Date().toISOString()
+      }])
+      .select()
+      .single();
 
-// Update waiter
-export async function updateWaiter(waiterId, updatedData) {
-  const { data, error } = await supabase
-    .from('Waiter')
-    .update(updatedData)
-    .eq('waiter_id', waiterId)
-    .select();
-  
-  if (error) {
-    console.error('Error updating waiter:', error);
-    throw error;
+    if (error) throw error;
+    
+    console.log('✅ Waiter created successfully');
+    return { success: true, data };
+  } catch (error) {
+    console.error('❌ Error creating waiter:', error);
+    return { success: false, message: error.message };
   }
-  return data;
-}
+};
 
-// Delete waiter
-export async function deleteWaiter(waiterId) {
-  const { data, error } = await supabase
-    .from('Waiter')
-    .delete()
-    .eq('waiter_id', waiterId);
-  
-  if (error) {
-    console.error('Error deleting waiter:', error);
-    throw error;
-  }
-  return data;
-}
+// ✅ GET ALL WAITERS
+export const getAllWaiters = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('Waiter')
+      .select('*');
 
-// Get waiter count
-export async function getWaiterCount() {
-  const { count, error } = await supabase
-    .from('Waiter')
-    .select('*', { count: 'exact', head: true });
-  
-  if (error) {
-    console.error('Error getting waiter count:', error);
-    throw error;
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('❌ Error fetching waiters:', error);
+    return [];
   }
-  return count;
-}
+};
 
-// Search waiters by name
-export async function searchWaitersByName(name) {
-  const { data, error } = await supabase
-    .from('Waiter')
-    .select('*')
-    .ilike('name', `%${name}%`);
-  
-  if (error) {
-    console.error('Error searching waiters:', error);
-    throw error;
+// ✅ DELETE WAITER
+export const deleteWaiter = async (waiterId) => {
+  try {
+    const { error } = await supabase
+      .from('Waiter')
+      .delete()
+      .eq('waiter_id', waiterId);
+
+    if (error) throw error;
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Error deleting waiter:', error);
+    return { success: false, message: error.message };
   }
-  return data;
-}
+};

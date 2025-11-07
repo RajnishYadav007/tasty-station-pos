@@ -1,7 +1,9 @@
-// src/pages/Dashboard/Dashboard.jsx
+// src/pages/Dashboard/Dashboard.jsx - ✅ UPDATED WITH STAFF LIST + DELETE
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';  // ✅ FIX PATH
+import { toast } from 'react-toastify';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -19,25 +21,37 @@ import {
   Plus,
   Eye,
   UserPlus,
-  BarChart3
+  BarChart3,
+  LogOut,
+  Trash2,
+  Mail,
+  Phone
 } from 'lucide-react';
 
-// ✅ Import APIs
-import { getOrders, getOrderStatistics, getTodaysOrders } from '../api/orderApi';
-import { getTotalRevenue, getTodaysRevenue, getBillStatistics } from '../api/billApi';
-import { getDishes } from '../api/dishApi';
-import { getUsers } from '../api/userApi';
-import { getOrderDetailsByOrderId } from '../api/orderDetailsApi';
+import { 
+  sendTableOccupiedNotification,
+  sendOrderReadyNotification,
+  sendNewOrderNotification,
+  sendPaymentReadyNotification
+} from '../api/notificationApi';
+
+import { getOrders, getOrderStatistics, getTodaysOrders } from '../api/orderApi';  // ✅ FIX PATH
+import { getTotalRevenue, getTodaysRevenue, getBillStatistics } from '../api/billApi';  // ✅ FIX PATH
+import { getDishes } from '../api/dishApi';  // ✅ FIX PATH
+import { getUsers } from '../api/userApi';  // ✅ FIX PATH
+import { getOrderDetailsByOrderId } from '../api/orderDetailsApi';  // ✅ FIX PATH
 
 import './Dashboard.css';
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { currentUser, isOwner, logout, staffManagement } = useAuth();
+  
   const [currentTime, setCurrentTime] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('overview');
   
-  // ✅ State for API data
   const [stats, setStats] = useState({
     totalRevenue: 0,
     todayRevenue: 0,
@@ -47,8 +61,25 @@ const Dashboard = () => {
     activeNow: 0,
     pendingActions: 0
   });
+  
   const [recentOrders, setRecentOrders] = useState([]);
   const [topItems, setTopItems] = useState([]);
+  
+  // ✅ STAFF COUNTS + LISTS
+  const [staffData, setStaffData] = useState({
+    waiters: [],
+    chefs: []
+  });
+
+  const [staffFormData, setStaffFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    phone: '',
+    specialization: ''
+  });
+  const [staffType, setStaffType] = useState('waiter');
+  const [staffLoading, setStaffLoading] = useState(false);
 
   // Update time every second
   useEffect(() => {
@@ -58,16 +89,19 @@ const Dashboard = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // ✅ Load all dashboard data
+  // Load data based on active tab
   useEffect(() => {
-    loadDashboardData();
-  }, []);
+    if (activeTab === 'overview') {
+      loadDashboardData();
+    } else if (activeTab === 'staff' && isOwner) {
+      loadStaffData();
+    }
+  }, [activeTab]);
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
       
-      // Fetch all data in parallel
       const [
         ordersData,
         orderStats,
@@ -86,7 +120,6 @@ const Dashboard = () => {
         getDishes()
       ]);
 
-      // Calculate statistics
       const calculatedStats = {
         totalRevenue: totalRevenue || 0,
         todayRevenue: todayRevenue || 0,
@@ -98,35 +131,49 @@ const Dashboard = () => {
       };
 
       setStats(calculatedStats);
-
-      // Process recent orders
       await processRecentOrders(ordersData.slice(0, 5));
-
-      // Calculate top selling items
       await calculateTopItems(ordersData);
 
     } catch (error) {
       console.error('Error loading dashboard data:', error);
+      toast.error('❌ Error loading dashboard data');
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ Process recent orders with details
+  // ✅ LOAD STAFF DATA WITH DETAILED LIST
+  const loadStaffData = async () => {
+    try {
+      setLoading(true);
+      
+      const waiters = await staffManagement.getAllWaiters();
+      const chefs = await staffManagement.getAllChefs();
+      
+      setStaffData({
+        waiters: waiters || [],
+        chefs: chefs || []
+      });
+      
+    } catch (error) {
+      console.error('Error loading staff data:', error);
+      toast.error('❌ Error loading staff data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const processRecentOrders = async (orders) => {
     try {
       const processedOrders = await Promise.all(
         orders.map(async (order) => {
           try {
-            // Get order details
             const details = await getOrderDetailsByOrderId(order.order_id);
             
-            // Calculate total
             const total = details.reduce((sum, item) => 
               sum + (parseFloat(item.price) * parseInt(item.quantity)), 0
             );
 
-            // Calculate time ago
             const now = new Date();
             const created = new Date(order.order_date);
             const diffMinutes = Math.floor((now - created) / 60000);
@@ -141,7 +188,7 @@ const Dashboard = () => {
 
             return {
               id: order.order_id.toString().slice(-5),
-              table: 'Table 1', // You can link with table data if needed
+              table: 'Table 1',
               items: details.length,
               amount: total,
               status: order.status === 'completed' ? 'Completed' : order.status === 'pending' ? 'Pending' : 'In Progress',
@@ -161,12 +208,10 @@ const Dashboard = () => {
     }
   };
 
-  // ✅ Calculate top selling items from orders
   const calculateTopItems = async (orders) => {
     try {
       const itemCounts = {};
       
-      // Fetch order details for all orders
       await Promise.all(
         orders.map(async (order) => {
           try {
@@ -177,7 +222,7 @@ const Dashboard = () => {
               if (!itemCounts[dishId]) {
                 itemCounts[dishId] = {
                   id: dishId,
-                  name: `Dish #${dishId}`, // You can fetch dish name from Dish table
+                  name: `Dish #${dishId}`,
                   count: 0,
                   revenue: 0
                 };
@@ -191,7 +236,6 @@ const Dashboard = () => {
         })
       );
 
-      // Sort and get top 4
       const topItemsArray = Object.values(itemCounts)
         .sort((a, b) => b.count - a.count)
         .slice(0, 4)
@@ -209,7 +253,81 @@ const Dashboard = () => {
     }
   };
 
-  // ✅ Stats data with real values
+  const handleCreateStaff = async (e) => {
+    e.preventDefault();
+    
+    if (!staffFormData.name || !staffFormData.email || !staffFormData.password || !staffFormData.phone) {
+      toast.warning('⚠️ Please fill in all fields');
+      return;
+    }
+
+    setStaffLoading(true);
+
+    try {
+      let result;
+      
+      if (staffType === 'waiter') {
+        result = await staffManagement.createWaiter(staffFormData);
+      } else if (staffType === 'chef') {
+        result = await staffManagement.createChef(staffFormData);
+      }
+
+      if (result.success) {
+        toast.success(`✅ ${staffType} created successfully!`);
+        setStaffFormData({ name: '', email: '', password: '', phone: '', specialization: '' });
+        loadStaffData();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      console.error('Error creating staff:', error);
+      toast.error('❌ Error creating staff');
+    } finally {
+      setStaffLoading(false);
+    }
+  };
+
+  // ✅ DELETE WAITER
+  const handleDeleteWaiter = async (waiterId) => {
+    if (window.confirm('Are you sure you want to delete this waiter?')) {
+      try {
+        const result = await staffManagement.deleteWaiter(waiterId);
+        if (result.success) {
+          toast.success('✅ Waiter deleted successfully!');
+          loadStaffData();
+        } else {
+          toast.error(result.message);
+        }
+      } catch (error) {
+        console.error('Error deleting waiter:', error);
+        toast.error('❌ Error deleting waiter');
+      }
+    }
+  };
+
+  // ✅ DELETE CHEF
+  const handleDeleteChef = async (chefId) => {
+    if (window.confirm('Are you sure you want to delete this chef?')) {
+      try {
+        const result = await staffManagement.deleteChef(chefId);
+        if (result.success) {
+          toast.success('✅ Chef deleted successfully!');
+          loadStaffData();
+        } else {
+          toast.error(result.message);
+        }
+      } catch (error) {
+        console.error('Error deleting chef:', error);
+        toast.error('❌ Error deleting chef');
+      }
+    }
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   const statsData = [
     { 
       id: 1, 
@@ -246,7 +364,6 @@ const Dashboard = () => {
     }
   ];
 
-  // Quick actions with navigation
   const quickActions = [
     { 
       id: 1, 
@@ -278,7 +395,6 @@ const Dashboard = () => {
     }
   ];
 
-  // Handle refresh
   const handleRefresh = async () => {
     setRefreshing(true);
     await loadDashboardData();
@@ -287,7 +403,6 @@ const Dashboard = () => {
     }, 1000);
   };
 
-  // Get status badge class
   const getStatusClass = (status) => {
     switch(status.toLowerCase()) {
       case 'completed':
@@ -301,6 +416,16 @@ const Dashboard = () => {
     }
   };
 
+  if (!isOwner) {
+    return (
+      <div className="dashboard-container">
+        <div style={{ textAlign: 'center', padding: '60px', color: '#666' }}>
+          ⛔ Access Denied! Only Admin can access Dashboard.
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="dashboard-container">
@@ -313,12 +438,12 @@ const Dashboard = () => {
 
   return (
     <div className="dashboard-container">
-      {/* Header Section */}
+      {/* Header */}
       <div className="dashboard-header">
         <div className="header-left">
-          <h1>Dashboard</h1>
+          <h1>🏨 Admin Dashboard</h1>
           <p className="welcome-text">
-            Welcome back! Here's what's happening today.
+            Welcome back, {currentUser?.name}! 
             <span className="current-time">
               <Clock size={14} />
               {currentTime.toLocaleTimeString('en-US', { 
@@ -337,191 +462,430 @@ const Dashboard = () => {
             <RefreshCw size={18} />
             Refresh
           </button>
+          
+          <button 
+            className="logout-btn"
+            onClick={handleLogout}
+            title="Logout"
+          >
+            <LogOut size={18} />
+          </button>
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="stats-grid">
-        {statsData.map(stat => {
-          const Icon = stat.icon;
-          const TrendIcon = stat.trending === 'up' ? ArrowUpRight : ArrowDownRight;
-          
-          return (
-            <div key={stat.id} className="stat-card">
-              <div className="stat-card-header">
-                <div 
-                  className="stat-icon" 
-                  style={{ 
-                    backgroundColor: stat.bgColor,
-                    color: stat.iconColor 
-                  }}
-                >
-                  <Icon size={24} />
+      {/* TAB NAVIGATION */}
+      <div className="dashboard-tabs">
+        <button 
+          className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
+          onClick={() => setActiveTab('overview')}
+        >
+          <BarChart3 size={18} />
+          Overview
+        </button>
+        
+        <button 
+          className={`tab-btn ${activeTab === 'staff' ? 'active' : ''}`}
+          onClick={() => setActiveTab('staff')}
+        >
+          <Users size={18} />
+          Staff Management
+        </button>
+      </div>
+
+      {/* OVERVIEW TAB */}
+      {activeTab === 'overview' && (
+        <div className="tab-content">
+          {/* Stats Grid */}
+          <div className="stats-grid">
+            {statsData.map(stat => {
+              const Icon = stat.icon;
+              const TrendIcon = stat.trending === 'up' ? ArrowUpRight : ArrowDownRight;
+              
+              return (
+                <div key={stat.id} className="stat-card">
+                  <div className="stat-card-header">
+                    <div 
+                      className="stat-icon" 
+                      style={{ 
+                        backgroundColor: stat.bgColor,
+                        color: stat.iconColor 
+                      }}
+                    >
+                      <Icon size={24} />
+                    </div>
+                    <button className="stat-more-btn">
+                      <MoreVertical size={18} />
+                    </button>
+                  </div>
+                  
+                  <div className="stat-content">
+                    <h3 className="stat-value">{stat.value}</h3>
+                    <p className="stat-title">{stat.title}</p>
+                    
+                    <div className="stat-footer">
+                      <span className={`stat-change ${stat.trending}`}>
+                        <TrendIcon size={16} />
+                        {stat.change}
+                      </span>
+                      <span className="stat-description">{stat.description}</span>
+                    </div>
+                  </div>
                 </div>
-                <button className="stat-more-btn">
-                  <MoreVertical size={18} />
+              );
+            })}
+          </div>
+
+          {/* Quick Actions */}
+          <div className="quick-actions-section">
+            <h2>Quick Actions</h2>
+            <div className="quick-actions-grid">
+              {quickActions.map(action => {
+                const ActionIcon = action.icon;
+                return (
+                  <button 
+                    key={action.id} 
+                    className="quick-action-btn"
+                    style={{ borderColor: action.color }}
+                    onClick={action.action}
+                  >
+                    <ActionIcon size={20} style={{ color: action.color }} />
+                    <span>{action.title}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Main Content */}
+          <div className="dashboard-content-grid">
+            {/* Recent Orders */}
+            <div className="dashboard-card recent-orders-card">
+              <div className="card-header">
+                <h2>Recent Orders</h2>
+                <button className="view-all-btn" onClick={() => navigate('/manage-table')}>
+                  View All
                 </button>
               </div>
               
-              <div className="stat-content">
-                <h3 className="stat-value">{stat.value}</h3>
-                <p className="stat-title">{stat.title}</p>
-                
-                <div className="stat-footer">
-                  <span className={`stat-change ${stat.trending}`}>
-                    <TrendIcon size={16} />
-                    {stat.change}
-                  </span>
-                  <span className="stat-description">{stat.description}</span>
-                </div>
+              <div className="orders-table-container">
+                {recentOrders.length === 0 ? (
+                  <div className="empty-state">
+                    <ShoppingCart size={48} />
+                    <p>No orders yet</p>
+                    <span>Orders will appear here once created</span>
+                  </div>
+                ) : (
+                  <table className="orders-table">
+                    <thead>
+                      <tr>
+                        <th>Order ID</th>
+                        <th>Customer</th>
+                        <th>Table</th>
+                        <th>Items</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentOrders.map(order => (
+                        <tr key={order.id} className="order-row">
+                          <td className="order-id">#{order.id}</td>
+                          <td className="customer-name">{order.customer}</td>
+                          <td>{order.table}</td>
+                          <td>{order.items}</td>
+                          <td className="amount">₹{order.amount.toFixed(2)}</td>
+                          <td>
+                            <span className={`status-badge ${getStatusClass(order.status)}`}>
+                              {order.status}
+                            </span>
+                          </td>
+                          <td className="time">{order.time}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </div>
-          );
-        })}
-      </div>
 
-      {/* Quick Actions */}
-      <div className="quick-actions-section">
-        <h2>Quick Actions</h2>
-        <div className="quick-actions-grid">
-          {quickActions.map(action => {
-            const ActionIcon = action.icon;
-            return (
-              <button 
-                key={action.id} 
-                className="quick-action-btn"
-                style={{ borderColor: action.color }}
-                onClick={action.action}
-              >
-                <ActionIcon size={20} style={{ color: action.color }} />
-                <span>{action.title}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="dashboard-content-grid">
-        {/* Recent Orders */}
-        <div className="dashboard-card recent-orders-card">
-          <div className="card-header">
-            <h2>Recent Orders</h2>
-            <button className="view-all-btn" onClick={() => navigate('/manage-table')}>
-              View All
-            </button>
-          </div>
-          
-          <div className="orders-table-container">
-            {recentOrders.length === 0 ? (
-              <div className="empty-state">
-                <ShoppingCart size={48} />
-                <p>No orders yet</p>
-                <span>Orders will appear here once created</span>
+            {/* Top Selling Items */}
+            <div className="dashboard-card top-items-card">
+              <div className="card-header">
+                <h2>Top Selling Items</h2>
+                <button className="view-all-btn" onClick={() => navigate('/menu')}>
+                  View All
+                </button>
               </div>
-            ) : (
-              <table className="orders-table">
-                <thead>
-                  <tr>
-                    <th>Order ID</th>
-                    <th>Customer</th>
-                    <th>Table</th>
-                    <th>Items</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                    <th>Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentOrders.map(order => (
-                    <tr key={order.id} className="order-row">
-                      <td className="order-id">#{order.id}</td>
-                      <td className="customer-name">{order.customer}</td>
-                      <td>{order.table}</td>
-                      <td>{order.items}</td>
-                      <td className="amount">₹{order.amount.toFixed(2)}</td>
-                      <td>
-                        <span className={`status-badge ${getStatusClass(order.status)}`}>
-                          {order.status}
-                        </span>
-                      </td>
-                      <td className="time">{order.time}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-
-        {/* Top Selling Items */}
-        <div className="dashboard-card top-items-card">
-          <div className="card-header">
-            <h2>Top Selling Items</h2>
-            <button className="view-all-btn" onClick={() => navigate('/menu')}>
-              View All
-            </button>
-          </div>
-          
-          <div className="top-items-list">
-            {topItems.length === 0 ? (
-              <div className="empty-state">
-                <BarChart3 size={48} />
-                <p>No data yet</p>
-                <span>Top items will appear after orders</span>
-              </div>
-            ) : (
-              topItems.map((item, index) => (
-                <div key={item.id} className="top-item">
-                  <div className="item-rank">#{index + 1}</div>
-                  <div className="item-details">
-                    <h4>{item.name}</h4>
-                    <p>{item.orders} orders • ₹{item.revenue}</p>
+              
+              <div className="top-items-list">
+                {topItems.length === 0 ? (
+                  <div className="empty-state">
+                    <BarChart3 size={48} />
+                    <p>No data yet</p>
+                    <span>Top items will appear after orders</span>
                   </div>
-                  <div className={`item-trend ${item.trend}`}>
-                    <TrendingUp size={16} />
+                ) : (
+                  topItems.map((item, index) => (
+                    <div key={item.id} className="top-item">
+                      <div className="item-rank">#{index + 1}</div>
+                      <div className="item-details">
+                        <h4>{item.name}</h4>
+                        <p>{item.orders} orders • ₹{item.revenue}</p>
+                      </div>
+                      <div className={`item-trend ${item.trend}`}>
+                        <TrendingUp size={16} />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Performance Summary */}
+          <div className="performance-summary">
+            <div className="summary-card">
+              <CheckCircle size={24} className="summary-icon success" />
+              <div>
+                <h3>100.0%</h3>
+                <p>Order Success Rate</p>
+              </div>
+            </div>
+            
+            <div className="summary-card">
+              <Clock size={24} className="summary-icon warning" />
+              <div>
+                <h3>10 mins</h3>
+                <p>Avg. Preparation Time</p>
+              </div>
+            </div>
+            
+            <div className="summary-card">
+              <Users size={24} className="summary-icon info" />
+              <div>
+                <h3>4.8/5.0</h3>
+                <p>Customer Satisfaction</p>
+              </div>
+            </div>
+            
+            <div className="summary-card">
+              <AlertCircle size={24} className="summary-icon error" />
+              <div>
+                <h3>{stats.pendingActions}</h3>
+                <p>Pending Actions</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STAFF MANAGEMENT TAB */}
+      {activeTab === 'staff' && (
+        <div className="tab-content staff-management-content">
+          <div className="staff-management-grid">
+            {/* Create New Staff */}
+            <div className="dashboard-card create-staff-card">
+              <div className="card-header">
+                <h2>➕ Create New Staff</h2>
+              </div>
+
+              <form onSubmit={handleCreateStaff} className="staff-form">
+                <div className="form-group">
+                  <label>Staff Type</label>
+                  <select 
+                    value={staffType} 
+                    onChange={(e) => setStaffType(e.target.value)}
+                    className="form-input"
+                  >
+                    <option value="waiter">Waiter 🍽️</option>
+                    <option value="chef">Chef 👨‍🍳</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Full Name</label>
+                  <input
+                    type="text"
+                    placeholder="Enter name"
+                    value={staffFormData.name}
+                    onChange={(e) => setStaffFormData({...staffFormData, name: e.target.value})}
+                    className="form-input"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Email</label>
+                  <input
+                    type="email"
+                    placeholder="Enter email"
+                    value={staffFormData.email}
+                    onChange={(e) => setStaffFormData({...staffFormData, email: e.target.value})}
+                    className="form-input"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Password</label>
+                  <input
+                    type="text"
+                    placeholder="Enter password"
+                    value={staffFormData.password}
+                    onChange={(e) => setStaffFormData({...staffFormData, password: e.target.value})}
+                    className="form-input"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Phone</label>
+                  <input
+                    type="tel"
+                    placeholder="Enter phone"
+                    value={staffFormData.phone}
+                    onChange={(e) => setStaffFormData({...staffFormData, phone: e.target.value})}
+                    className="form-input"
+                    required
+                  />
+                </div>
+
+                {staffType === 'chef' && (
+                  <div className="form-group">
+                    <label>Specialization</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Indian, Chinese"
+                      value={staffFormData.specialization}
+                      onChange={(e) => setStaffFormData({...staffFormData, specialization: e.target.value})}
+                      className="form-input"
+                    />
+                  </div>
+                )}
+
+                <button 
+                  type="submit" 
+                  className="btn-primary"
+                  disabled={staffLoading}
+                >
+                  {staffLoading ? 'Creating...' : `Create ${staffType}`}
+                </button>
+              </form>
+            </div>
+
+            {/* ✅ STAFF OVERVIEW WITH LIST + DELETE */}
+            <div className="dashboard-card staff-count-card">
+              <div className="card-header">
+                <h2>👥 Staff Overview</h2>
+              </div>
+
+              {/* Summary Cards */}
+              <div className="staff-count-container">
+                <div className="staff-count-item">
+                  <div className="staff-count-icon waiter-icon">🍽️</div>
+                  <div className="staff-count-info">
+                    <h3 className="staff-count-number">{staffData.waiters.length}</h3>
+                    <p className="staff-count-label">Waiters</p>
                   </div>
                 </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
 
-      {/* Performance Summary */}
-      <div className="performance-summary">
-        <div className="summary-card">
-          <CheckCircle size={24} className="summary-icon success" />
-          <div>
-            <h3>100.0%</h3>
-            <p>Order Success Rate</p>
+                <div className="staff-count-item">
+                  <div className="staff-count-icon chef-icon">👨‍🍳</div>
+                  <div className="staff-count-info">
+                    <h3 className="staff-count-number">{staffData.chefs.length}</h3>
+                    <p className="staff-count-label">Chefs</p>
+                  </div>
+                </div>
+
+                <div className="staff-count-item total">
+                  <div className="staff-count-icon total-icon">👥</div>
+                  <div className="staff-count-info">
+                    <h3 className="staff-count-number">{staffData.waiters.length + staffData.chefs.length}</h3>
+                    <p className="staff-count-label">Total Staff</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Waiters List */}
+              {staffData.waiters.length > 0 && (
+                <div className="staff-list-section">
+                  <h3 className="staff-list-title">🍽️ Waiters</h3>
+                  <div className="staff-list">
+                    {staffData.waiters.map(waiter => (
+                      <div key={waiter.waiter_id} className="staff-item">
+                        <div className="staff-avatar">🍽️</div>
+                        <div className="staff-item-info">
+                          <h4>{waiter.waiter_name}</h4>
+                          <div className="staff-detail">
+                            <Mail size={14} /> {waiter.email}
+                          </div>
+                          {waiter.phone && (
+                            <div className="staff-detail">
+                              <Phone size={14} /> {waiter.phone}
+                            </div>
+                          )}
+                        </div>
+                        <button 
+                          className="btn-delete-staff"
+                          onClick={() => handleDeleteWaiter(waiter.waiter_id)}
+                          title="Delete waiter"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Chefs List */}
+              {staffData.chefs.length > 0 && (
+                <div className="staff-list-section">
+                  <h3 className="staff-list-title">👨‍🍳 Chefs</h3>
+                  <div className="staff-list">
+                    {staffData.chefs.map(chef => (
+                      <div key={chef.chef_id} className="staff-item">
+                        <div className="staff-avatar">👨‍🍳</div>
+                        <div className="staff-item-info">
+                          <h4>{chef.chef_name}</h4>
+                          <div className="staff-detail">
+                            <Mail size={14} /> {chef.email}
+                          </div>
+                          {chef.phone && (
+                            <div className="staff-detail">
+                              <Phone size={14} /> {chef.phone}
+                            </div>
+                          )}
+                          {chef.specialization && (
+                            <div className="staff-detail">
+                              <span className="badge">{chef.specialization}</span>
+                            </div>
+                          )}
+                        </div>
+                        <button 
+                          className="btn-delete-staff"
+                          onClick={() => handleDeleteChef(chef.chef_id)}
+                          title="Delete chef"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {staffData.waiters.length === 0 && staffData.chefs.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#999' }}>
+                  <Users size={48} style={{ marginBottom: '12px', opacity: 0.3 }} />
+                  <p>No staff members yet</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-        
-        <div className="summary-card">
-          <Clock size={24} className="summary-icon warning" />
-          <div>
-            <h3>10 mins</h3>
-            <p>Avg. Preparation Time</p>
-          </div>
-        </div>
-        
-        <div className="summary-card">
-          <Users size={24} className="summary-icon info" />
-          <div>
-            <h3>4.8/5.0</h3>
-            <p>Customer Satisfaction</p>
-          </div>
-        </div>
-        
-        <div className="summary-card">
-          <AlertCircle size={24} className="summary-icon error" />
-          <div>
-            <h3>{stats.pendingActions}</h3>
-            <p>Pending Actions</p>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 };

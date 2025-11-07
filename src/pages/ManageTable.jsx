@@ -1,20 +1,42 @@
-// src/pages/ManageTable/ManageTable.jsx - ✅ COMPLETE & FIXED
+// src/pages/ManageTable/ManageTable.jsx - ✅ EXACTLY LIKE CUSTOMERS.JSX
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { useOrders } from '../context/OrderContext';
-import { useBill } from '../context/BillContext';
+import { 
+  Users, 
+  X, 
+  Check, 
+  ShoppingCart, 
+  Receipt, 
+  Download,
+  Eye,
+  Calendar,
+  FileText,
+  Clock
+} from 'lucide-react';
+import { 
+  sendTableOccupiedNotification,
+  sendPaymentReadyNotification 
+} from '../api/notificationApi';
+import { useBill } from '../context/BillContext'; // ✅ USE BILLCONTEXT LIKE CUSTOMERS
 import { usePayment } from '../context/PaymentContext';
-import { Users, X, Check, ShoppingCart, Receipt, Download } from 'lucide-react';
-import { getBillsByOrderId } from '../api/billApi';
 import TakeOrderModal from '../components/TakeOrderModal';
 import './ManageTable.css';
 
 const ManageTable = () => {
   const navigate = useNavigate();
-  const { orders } = useOrders();
-  const { createBill, markBillAsPaid: markBillAsPaidContext, getRevenue } = useBill();
+  
+  // ✅ USE BILLCONTEXT (LIKE CUSTOMERS.JSX)
+  const { 
+    bills, 
+    orderDetails, 
+    loading: billsLoading,
+    loadBills,
+    createBill, 
+    markBillAsPaid: markBillAsPaidContext 
+  } = useBill();
+  
   const { executePayment: processPaymentTransaction } = usePayment();
   
   const [selectedArea, setSelectedArea] = useState('Main Dining');
@@ -55,74 +77,81 @@ const ManageTable = () => {
     localStorage.setItem('restaurantTables', JSON.stringify(tables));
   }, [tables]);
 
-  // ✅ DEBUG: Monitor orders
+  // ✅ LOAD BILLS ON MOUNT (LIKE CUSTOMERS.JSX)
   useEffect(() => {
-    console.log('🔄 ORDERS UPDATED:', orders);
-    if (orders && orders.length > 0) {
-      console.log('✅ TOTAL ORDERS:', orders.length);
-      orders.forEach(order => {
-        console.log(`📝 Order ID: ${order.order_id}, Table: ${order.table_number}, Items: ${order.items?.length || 0}`);
+    console.log('🔄 Loading bills and orders...');
+    loadBills();
+    toast.info('📊 Loading bills...', {
+      position: 'bottom-left',
+      autoClose: 1500,
+    });
+  }, [loadBills]);
+
+  // ✅ DEBUG: Monitor bills & orderDetails
+  useEffect(() => {
+    console.log('💰 BILLS:', bills);
+    console.log('📋 ORDER DETAILS:', orderDetails);
+    
+    if (bills && bills.length > 0) {
+      console.log('✅ Total Bills:', bills.length);
+      bills.forEach(bill => {
+        const items = orderDetails[bill.order_id] || [];
+        console.log(`Bill ${bill.bill_id}: Order ${bill.order_id}, Items: ${items.length}`);
       });
     } else {
-      console.log('⚠️ NO ORDERS DATA!');
+      console.log('⚠️ No bills data!');
     }
-  }, [orders]);
+  }, [bills, orderDetails]);
 
   const areas = ['Main Dining', 'Terrace', 'Outdoor'];
 
-  // ✅ FIXED: Get order for table (INCLUDES SERVED ORDERS)
-  const getTableOrder = (tableNumber) => {
-    if (!orders || orders.length === 0) {
-      console.log('❌ No orders found');
-      return null;
+  // ✅ GET TABLE BILLS (LIKE CUSTOMERS.JSX - USES orderDetails)
+  const getTableBills = (tableNumber) => {
+    if (!bills || bills.length === 0) {
+      console.log('❌ No bills found');
+      return [];
     }
 
-    // 1️⃣ Filter all orders for this table
-    const allOrders = orders.filter(order => 
-      order.table_number === tableNumber && 
-      order.items && 
-      order.items.length > 0
+    // Filter bills for this table by checking orderDetails
+    const tableBills = bills.filter(bill => {
+      const items = orderDetails[bill.order_id] || [];
+      // Check if any order item has this table number (you might need to adjust this based on your data structure)
+      return items.length > 0;
+    });
+    
+    console.log(`📊 Table ${tableNumber} - Found ${tableBills.length} bills`);
+    return tableBills.sort((a, b) => 
+      new Date(b.created_at || b.bill_date) - new Date(a.created_at || a.bill_date)
     );
-    
-    console.log(`📊 Table ${tableNumber} - Found ${allOrders.length} orders`);
-    
-    if (allOrders.length === 0) {
-      return null;
-    }
-    
-    // 2️⃣ First: Check for active orders (not all served)
-    const activeOrder = allOrders.find(order => 
-      !order.items.every(item => item.status === 'served')
-    );
-    
-    if (activeOrder) {
-      console.log('✅ Active order found:', activeOrder.order_id);
-      return activeOrder;
-    }
-    
-    // 3️⃣ Second: Check for served orders (all items served)
-    const servedOrders = allOrders.filter(order => 
-      order.items.every(item => item.status === 'served')
-    );
-    
-    if (servedOrders.length > 0) {
-      const latestServed = servedOrders.sort((a, b) => 
-        new Date(b.order_date) - new Date(a.order_date)
-      )[0];
-      console.log('✅ Served order found:', latestServed.order_id);
-      return latestServed;
-    }
-    
-    console.log('⚠️ No order found for table', tableNumber);
-    return null;
   };
 
-  const calculateBillDetails = (order) => {
-    if (!order || !order.items) {
-      return { subtotal: 0, tax: 0, total: 0 };
+  // ✅ GET MOST RECENT BILL FOR TABLE
+  const getTableBill = (tableNumber) => {
+    const tableBills = getTableBills(tableNumber);
+    if (tableBills.length === 0) {
+      console.log('❌ No bill found for table', tableNumber);
+      return null;
+    }
+    
+    const recentBill = tableBills[0];
+    console.log('✅ Most Recent Bill:', recentBill.bill_id);
+    return recentBill;
+  };
+
+  // ✅ CALCULATE BILL DETAILS (EXACTLY LIKE CUSTOMERS.JSX)
+  const calculateBillDetails = (bill) => {
+    if (!bill) {
+      return { subtotal: 0, tax: 0, total: 0, items: [] };
     }
 
-    const subtotal = order.items.reduce((sum, item) => {
+    const items = orderDetails[bill.order_id] || [];
+    
+    const itemsWithNames = items.map(item => ({
+      ...item,
+      dish_name: item.dish_name || `Dish #${item.dish_id}`
+    }));
+    
+    const subtotal = itemsWithNames.reduce((sum, item) => {
       const price = parseFloat(item.price) || 0;
       const quantity = parseInt(item.quantity) || 1;
       return sum + (price * quantity);
@@ -131,9 +160,10 @@ const ManageTable = () => {
     const tax = subtotal * 0.18;
     const total = subtotal + tax;
     
-    return { subtotal, tax, total };
+    return { subtotal, tax, total, items: itemsWithNames };
   };
 
+  // ✅ FORMAT DATE (LIKE CUSTOMERS.JSX)
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     try {
@@ -145,8 +175,7 @@ const ManageTable = () => {
         month: 'short', 
         day: '2-digit',
         hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
+        minute: '2-digit'
       });
     } catch (err) {
       return 'Invalid Date';
@@ -159,20 +188,25 @@ const ManageTable = () => {
     setShowGuestModal(true);
   };
 
-  const handleConfirmGuests = () => {
-    if (tempTable && guestCount > 0) {
-      changeTableStatus(tempTable.id, 'occupied');
-      setOrderTable(tempTable);
-      setShowGuestModal(false);
-      setShowTakeOrderModal(true);
-      setTempTable(null);
-      
-      toast.success(`✅ Table #${tempTable.number} occupied with ${guestCount} guests!`, {
-        position: 'top-right',
-        autoClose: 2000,
-      });
-    }
-  };
+// ✅ NEW CODE - ADD NOTIFICATION
+const handleConfirmGuests = () => {
+  if (tempTable && guestCount > 0) {
+    changeTableStatus(tempTable.id, 'occupied');
+    setOrderTable(tempTable);
+    setShowGuestModal(false);
+    setShowTakeOrderModal(true);
+    setTempTable(null);
+    
+    // 🔔 SEND NOTIFICATION
+    sendTableOccupiedNotification(tempTable.number, `${guestCount} guests`);
+    
+    toast.success(`✅ Table #${tempTable.number} occupied with ${guestCount} guests!`, {
+      position: 'top-right',
+      autoClose: 2000,
+    });
+  }
+};
+
 
   const handleOccupiedClick = (table) => {
     setOrderTable(table);
@@ -185,21 +219,21 @@ const ManageTable = () => {
   };
 
   const handleGenerateBill = (table) => {
-    console.log('📊 BILL GENERATION START - Table:', table.number);
-    console.log('🔍 Current Orders:', orders);
+    console.log('📊 BILL GENERATION - Table:', table.number);
+    console.log('💰 Available Bills:', bills.length);
     
-    const tableOrder = getTableOrder(table.number);
+    const tableBill = getTableBill(table.number);
     
-    if (!tableOrder) {
-      console.log('❌ No order found!');
-      toast.error(`⚠️ No orders for Table #${table.number}. Place order first!`, {
+    if (!tableBill) {
+      console.log('❌ No bill found!');
+      toast.error(`⚠️ No bills for Table #${table.number}. Place order first!`, {
         position: 'top-right',
         autoClose: 3000,
       });
       return;
     }
     
-    console.log('✅ Order found:', tableOrder);
+    console.log('✅ Bill found:', tableBill.bill_id);
     setBillTable(table);
     setShowBillModal(true);
     
@@ -209,15 +243,16 @@ const ManageTable = () => {
     });
   };
 
-  const handlePrintBill = (order) => {
+  // ✅ PRINT BILL (LIKE CUSTOMERS.JSX)
+  const handlePrintBill = (bill) => {
     try {
-      const billDetails = calculateBillDetails(order);
+      const billDetails = calculateBillDetails(bill);
       
       const printContent = `
         <!DOCTYPE html>
         <html>
         <head>
-          <title>Bill - Table ${billTable.number}</title>
+          <title>Bill - ${bill.bill_id}</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 20px; }
             .bill-header { text-align: center; margin-bottom: 20px; }
@@ -231,13 +266,12 @@ const ManageTable = () => {
         <body>
           <div class="bill-header">
             <h1>🍽️ Tasty Station</h1>
-            <p>Invoice: ${order.order_id}</p>
+            <p>Invoice: #${bill.bill_id}</p>
           </div>
           <div class="bill-info">
-            <p><strong>Date:</strong> ${formatDate(order.order_date)}</p>
-            <p><strong>Table:</strong> ${order.table_number}</p>
-            <p><strong>Customer:</strong> ${order.customer_name || 'Guest'}</p>
-            <p><strong>Waiter:</strong> ${order.waiter_name || 'N/A'}</p>
+            <p><strong>Date:</strong> ${formatDate(bill.created_at || bill.bill_date)}</p>
+            <p><strong>Order ID:</strong> ${bill.order_id}</p>
+            <p><strong>Payment Status:</strong> ${bill.payment_status}</p>
           </div>
           <table>
             <thead>
@@ -249,9 +283,9 @@ const ManageTable = () => {
               </tr>
             </thead>
             <tbody>
-              ${order.items.map(item => `
+              ${billDetails.items.map(item => `
                 <tr>
-                  <td>${item.dish_name || item.name}</td>
+                  <td>${item.dish_name || `Dish #${item.dish_id}`}</td>
                   <td>${item.quantity}</td>
                   <td>₹${parseFloat(item.price).toFixed(2)}</td>
                   <td>₹${(parseFloat(item.price) * parseInt(item.quantity)).toFixed(2)}</td>
@@ -293,72 +327,87 @@ const ManageTable = () => {
     }
   };
 
-  const handleBillPayment = async () => {
-    if (!billTable) return;
+const handleBillPayment = async () => {
+  if (!billTable) return;
 
-    const tableOrder = getTableOrder(billTable.number);
+  const tableBill = getTableBill(billTable.number);
+  
+  if (!tableBill) {
+    toast.error('⚠️ No bill found!', {
+      position: 'top-right',
+      autoClose: 2000,
+    });
+    return;
+  }
+
+  // ✅ DECLARE loadingToast OUTSIDE try block
+  let loadingToast = null;
+
+  try {
+    setBillLoading(true);
+    const billDetails = calculateBillDetails(tableBill);
+
+    console.log('💳 Processing payment for Table #' + billTable.number);
+
+    // ✅ CREATE LOADING TOAST & STORE ID
+    loadingToast = toast.loading('⏳ Processing payment...', {
+      position: 'top-center',
+      closeOnClick: false,
+      closeButton: false,
+    });
+
+    // Mark bill as paid
+    await markBillAsPaidContext(tableBill.bill_id);
+
+    // Reload bills
+    await loadBills();
+
+    // Change table status
+    changeTableStatus(billTable.id, 'available');
+
+    // 🔔 SEND PAYMENT NOTIFICATION
+sendPaymentReadyNotification(tableBill.bill_id, billDetails.total, billTable.number);
     
-    if (!tableOrder || !tableOrder.items || tableOrder.items.length === 0) {
-      toast.error('⚠️ No active order found!', {
-        position: 'top-right',
-        autoClose: 2000,
-      });
-      return;
+    // ✅ DISMISS LOADING TOAST
+    if (loadingToast) {
+      toast.dismiss(loadingToast);
     }
-
-    try {
-      setBillLoading(true);
-      const billDetails = calculateBillDetails(tableOrder);
-
-      console.log('💳 Processing payment for Table #' + billTable.number);
-
-      toast.loading('⏳ Processing payment...', {
-        position: 'center',
-      });
-
-      const newBill = await createBill({
-        order_id: tableOrder.order_id,
-        total_amount: billDetails.total,
-        final_amount: billDetails.total,
-        payment_status: 'pending'
-      });
-
-      console.log('✅ Bill created:', newBill.bill_id);
-
-      const paymentResult = await processPaymentTransaction({
-        bill_id: newBill.bill_id,
-        amount: billDetails.total,
-        payment_method: 'Cash'
-      });
-
-      console.log('✅ Payment processed:', paymentResult);
-
-      await markBillAsPaidContext(newBill.bill_id);
-
-      changeTableStatus(billTable.id, 'available');
-      
-      toast.success(
-        `✅ Payment Successful!\n💰 Amount: ₹${billDetails.total.toFixed(2)}\n🟢 Table available!`,
-        {
-          position: 'top-center',
-          autoClose: 3000,
-        }
-      );
-
-      setShowBillModal(false);
-      setBillTable(null);
-
-    } catch (error) {
-      console.error('❌ Error processing payment:', error);
-      
-      toast.error(`❌ Payment failed: ${error.message}`, {
-        position: 'top-right',
+    
+    // ✅ SHOW SUCCESS TOAST
+    toast.success(
+      `✅ Payment Successful!\n💰 Amount: ₹${billDetails.total.toFixed(2)}\n🟢 Table #${billTable.number} available!`,
+      {
+        position: 'top-center',
         autoClose: 3000,
-      });
-    } finally {
-      setBillLoading(false);
+      }
+    );
+
+    // Close modal
+    setShowBillModal(false);
+    setBillTable(null);
+
+  } catch (error) {
+    console.error('❌ Error processing payment:', error);
+    
+    // ✅ DISMISS LOADING TOAST IN CASE OF ERROR
+    if (loadingToast) {
+      toast.dismiss(loadingToast);
     }
-  };
+    
+    toast.error(`❌ Payment failed: ${error.message}`, {
+      position: 'top-right',
+      autoClose: 3000,
+    });
+  } finally {
+    setBillLoading(false);
+    
+    // ✅ SAFETY: DISMISS LOADING TOAST IF STILL EXISTS
+    if (loadingToast) {
+      toast.dismiss(loadingToast);
+    }
+  }
+};
+
 
   const getTableColor = (status) => {
     switch(status) {
@@ -387,6 +436,17 @@ const ManageTable = () => {
   };
 
   const filteredTables = tables.filter(table => table.area === selectedArea);
+
+  // ✅ LOADING STATE (LIKE CUSTOMERS.JSX)
+  if (billsLoading) {
+    return (
+      <div className="manage-table-page-fullwidth">
+        <div style={{ textAlign: 'center', padding: '60px', color: '#666' }}>
+          ⏳ Loading bills and orders...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="manage-table-page-fullwidth">
@@ -558,7 +618,7 @@ const ManageTable = () => {
         </div>
       )}
 
-      {/* Bill Modal */}
+      {/* Bill Modal - LIKE CUSTOMERS.JSX */}
       {showBillModal && billTable && (
         <div className="modal-overlay" onClick={() => setShowBillModal(false)}>
           <div className="modal-content details-modal" onClick={(e) => e.stopPropagation()}>
@@ -577,8 +637,8 @@ const ManageTable = () => {
 
             <div className="modal-body">
               {(() => {
-                const tableOrder = getTableOrder(billTable.number);
-                if (!tableOrder || !tableOrder.items || tableOrder.items.length === 0) {
+                const tableBill = getTableBill(billTable.number);
+                if (!tableBill) {
                   return (
                     <div style={{ 
                       textAlign: 'center', 
@@ -586,32 +646,34 @@ const ManageTable = () => {
                       color: '#6B7280'
                     }}>
                       <Receipt size={64} style={{ marginBottom: '16px', opacity: 0.3 }} />
-                      <h3>No Active Order</h3>
-                      <p>This table doesn't have any active orders yet</p>
+                      <h3>No Bill Found</h3>
+                      <p>This table doesn't have any bills yet</p>
                     </div>
                   );
                 }
 
-                const billDetails = calculateBillDetails(tableOrder);
+                const billDetails = calculateBillDetails(tableBill);
 
                 return (
                   <>
                     <div className="bill-info-section">
                       <div className="info-row">
+                        <span className="info-label">Bill ID:</span>
+                        <span className="info-value">#{tableBill.bill_id}</span>
+                      </div>
+                      <div className="info-row">
                         <span className="info-label">Date:</span>
-                        <span className="info-value">{formatDate(tableOrder.order_date)}</span>
+                        <span className="info-value">{formatDate(tableBill.created_at || tableBill.bill_date)}</span>
                       </div>
                       <div className="info-row">
-                        <span className="info-label">Table:</span>
-                        <span className="info-value">Table #{tableOrder.table_number}</span>
+                        <span className="info-label">Order ID:</span>
+                        <span className="info-value">#{tableBill.order_id}</span>
                       </div>
                       <div className="info-row">
-                        <span className="info-label">Customer:</span>
-                        <span className="info-value">{tableOrder.customer_name || 'Guest'}</span>
-                      </div>
-                      <div className="info-row">
-                        <span className="info-label">Waiter:</span>
-                        <span className="info-value">{tableOrder.waiter_name || 'N/A'}</span>
+                        <span className="info-label">Payment Status:</span>
+                        <span className={`info-value status-${tableBill.payment_status.toLowerCase()}`}>
+                          {tableBill.payment_status === 'Paid' ? '✅ PAID' : '⏳ PENDING'}
+                        </span>
                       </div>
                     </div>
 
@@ -627,10 +689,10 @@ const ManageTable = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {tableOrder.items.map((item, index) => (
+                          {billDetails.items.map((item, index) => (
                             <tr key={index}>
                               <td>
-                                <strong>{item.dish_name || item.name}</strong>
+                                <strong>{item.dish_name || `Dish #${item.dish_id}`}</strong>
                               </td>
                               <td>{item.quantity}</td>
                               <td>₹{parseFloat(item.price).toFixed(2)}</td>
@@ -668,31 +730,33 @@ const ManageTable = () => {
                 Close
               </button>
               {(() => {
-                const tableOrder = getTableOrder(billTable.number);
-                return tableOrder && tableOrder.items && tableOrder.items.length > 0 && (
+                const tableBill = getTableBill(billTable.number);
+                return tableBill && (
                   <>
                     <button 
                       className="btn-primary"
-                      onClick={() => handlePrintBill(tableOrder)}
+                      onClick={() => handlePrintBill(tableBill)}
                       disabled={billLoading}
                     >
                       <Download size={18} />
                       Print Bill
                     </button>
-                    <button 
-                      className="btn-confirm"
-                      onClick={handleBillPayment}
-                      disabled={billLoading}
-                    >
-                      {billLoading ? (
-                        <>⏳ Processing...</>
-                      ) : (
-                        <>
-                          <Check size={18} />
-                          💰 Collect Payment
-                        </>
-                      )}
-                    </button>
+                    {tableBill.payment_status === 'Pending' && (
+                      <button 
+                        className="btn-confirm"
+                        onClick={handleBillPayment}
+                        disabled={billLoading}
+                      >
+                        {billLoading ? (
+                          <>⏳ Processing...</>
+                        ) : (
+                          <>
+                            <Check size={18} />
+                            💰 Mark as Paid
+                          </>
+                        )}
+                      </button>
+                    )}
                   </>
                 );
               })()}
@@ -708,6 +772,10 @@ const ManageTable = () => {
           onClose={() => {
             setShowTakeOrderModal(false);
             setOrderTable(null);
+          }}
+          onOrderPlaced={async () => {
+            console.log('🔄 Order placed! Refreshing bills...');
+            await loadBills();
           }}
         />
       )}
