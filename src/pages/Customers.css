@@ -954,3 +954,43 @@
     width: 100%;
   }
 }
+/* Mark as Paid Button */
+.action-btn.paid-btn {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  color: white;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.3s ease;
+}
+
+.action-btn.paid-btn:hover {
+  transform: scale(1.08);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.btn-paid {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.btn-paid:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+}
+
+.bill-status.paid { color: #10B981; }
+.bill-status.pending { color: #D97706; }
+
+.status-paid { color: #10B981 !important; font-weight: 700; }
+.status-pending { color: #D97706 !important; font-weight: 700; }

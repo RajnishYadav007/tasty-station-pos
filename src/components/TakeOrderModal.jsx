@@ -1,23 +1,21 @@
-// src/components/TakeOrderModal/TakeOrderModal.jsx - ✅ FULLY FIXED & TESTED
+// src/components/TakeOrderModal/TakeOrderModal.jsx - ✅ COMPLETE WORKING CODE
 
 import React, { useState, useEffect } from 'react';
+import { toast } from 'react-toastify';
 import { X, Plus, Minus, ShoppingCart, Search } from 'lucide-react';
 import './TakeOrderModal.css';
 
-// ✅ CORRECTED IMPORTS (../../ for parent api folder)
 import { getDishesWithCategory } from '../api/dishApi';
 import { getCategoriesWithDishCount } from '../api/categoryApi';
 import { addOrder } from '../api/orderApi';
 import { addMultipleOrderDetails } from '../api/orderDetailsApi';
 
 const TakeOrderModal = ({ table, onClose }) => {
-  // ✅ State from APIs
   const [dishes, setDishes] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // UI State
   const [selectedCategory, setSelectedCategory] = useState('All Dishes');
   const [searchQuery, setSearchQuery] = useState('');
   const [cart, setCart] = useState([]);
@@ -25,7 +23,6 @@ const TakeOrderModal = ({ table, onClose }) => {
   const [customerName, setCustomerName] = useState('');
   const [waiterName, setWaiterName] = useState('Waiter 1');
 
-  // ✅ Load dishes and categories from database
   useEffect(() => {
     loadDishesData();
   }, []);
@@ -33,13 +30,14 @@ const TakeOrderModal = ({ table, onClose }) => {
   const loadDishesData = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Loading dishes and categories...');
 
-      // Load categories
+      toast.info('Loading menu...', {
+        position: 'bottom-center',
+        autoClose: 1500,
+      });
+
       const categoriesData = await getCategoriesWithDishCount();
-      console.log('✅ Categories loaded:', categoriesData.length);
       
-      // Add "All Dishes" category
       const allCategories = [
         { 
           category_id: 0, 
@@ -54,11 +52,8 @@ const TakeOrderModal = ({ table, onClose }) => {
       
       setCategories(allCategories);
 
-      // Get all available dishes with category
       const availableDishes = await getDishesWithCategory();
-      console.log('✅ Dishes loaded:', availableDishes.length);
 
-      // ✅ FIXED: Transform to match Supabase response
       const transformedDishes = availableDishes.map(dish => ({
         id: dish.dish_id,
         dish_id: dish.dish_id,
@@ -71,16 +66,24 @@ const TakeOrderModal = ({ table, onClose }) => {
       }));
 
       setDishes(transformedDishes);
-      console.log('✅ All dishes transformed:', transformedDishes.length);
+
+      toast.success(`${transformedDishes.length} dishes available!`, {
+        position: 'bottom-center',
+        autoClose: 2000,
+      });
+
     } catch (error) {
-      console.error('❌ Error loading dishes:', error);
-      alert(`Failed to load dishes: ${error.message}`);
+      console.error('Error loading dishes:', error);
+      
+      toast.error(`Failed to load menu: ${error.message}`, {
+        position: 'top-right',
+        autoClose: 3000,
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ Get category icon
   const getCategoryIcon = (categoryName) => {
     const iconMap = {
       'Breakfast': '🍳',
@@ -100,7 +103,6 @@ const TakeOrderModal = ({ table, onClose }) => {
     return iconMap[categoryName] || '🍽️';
   };
 
-  // ✅ Safe filter with null checks
   const filteredDishes = dishes.filter(dish => {
     const matchesCategory =
       selectedCategory === 'All Dishes' || dish.category === selectedCategory;
@@ -113,7 +115,6 @@ const TakeOrderModal = ({ table, onClose }) => {
     return matchesCategory && matchesSearch;
   });
 
-  // ✅ Add to cart
   const addToCart = (dish) => {
     const existingItem = cart.find(item => item.id === dish.id);
 
@@ -128,9 +129,13 @@ const TakeOrderModal = ({ table, onClose }) => {
     } else {
       setCart([...cart, { ...dish, quantity: 1 }]);
     }
+
+    toast.success(`${dish.name} added!`, {
+      position: 'bottom-right',
+      autoClose: 1500,
+    });
   };
 
-  // ✅ Remove from cart
   const removeFromCart = (dishId) => {
     const existingItem = cart.find(item => item.id === dishId);
 
@@ -139,6 +144,11 @@ const TakeOrderModal = ({ table, onClose }) => {
       const newNotes = { ...notes };
       delete newNotes[dishId];
       setNotes(newNotes);
+      
+      toast.info(`${existingItem.name} removed!`, {
+        position: 'bottom-right',
+        autoClose: 1500,
+      });
     } else {
       setCart(
         cart.map(item =>
@@ -150,37 +160,46 @@ const TakeOrderModal = ({ table, onClose }) => {
     }
   };
 
-  // ✅ Update item notes
   const updateNotes = (dishId, note) => {
     setNotes({ ...notes, [dishId]: note });
   };
 
-  // ✅ Calculate total
   const calculateTotal = () => {
     return cart.reduce((total, item) => total + item.price * item.quantity, 0);
   };
 
-  // ✅ SUBMIT ORDER WITH FULL ERROR HANDLING
+  // ✅ SUBMIT ORDER WITH LOADING TOAST + AUTO DISMISS
   const handleSubmitOrder = async () => {
-    // Validation
     if (cart.length === 0) {
-      alert('⚠️ Please add items to cart');
+      toast.warning('Please add items to cart', {
+        position: 'top-right',
+        autoClose: 2000,
+      });
       return;
     }
 
     if (!customerName.trim()) {
-      alert('⚠️ Please enter customer name');
+      toast.warning('Please enter customer name', {
+        position: 'top-right',
+        autoClose: 2000,
+      });
       return;
     }
 
     try {
       setSubmitting(true);
-      console.log('📝 Submitting order...', {
-        customerName,
-        waiterName,
-        tableNumber: table?.number,
-        itemCount: cart.length
+
+      // ✅ LOADING TOAST WITH AUTO DISMISS
+      const loadingToastId = toast.loading('⏳ Sending order to kitchen...', {
+        position: 'top-center',
+        hideProgressBar: false,
+        closeOnClick: true,
       });
+
+      // ✅ AUTO DISMISS AFTER 5 SECONDS
+      setTimeout(() => {
+        toast.dismiss(loadingToastId);
+      }, 5000);
 
       // ✅ Step 1: Create order in database
       const orderResult = await addOrder({
@@ -193,11 +212,6 @@ const TakeOrderModal = ({ table, onClose }) => {
         status: 'pending'
       });
 
-      console.log('📋 Order API Response:', orderResult);
-      console.log('📋 Response type:', typeof orderResult);
-      console.log('📋 Is Array?', Array.isArray(orderResult));
-
-      // ✅ HANDLE BOTH ARRAY AND OBJECT RESPONSES
       let orderId;
 
       if (Array.isArray(orderResult)) {
@@ -205,10 +219,8 @@ const TakeOrderModal = ({ table, onClose }) => {
           throw new Error('API returned empty array');
         }
         orderId = orderResult[0]?.order_id;
-        console.log('📋 Array response, got ID:', orderId);
       } else if (typeof orderResult === 'object' && orderResult !== null) {
         orderId = orderResult?.order_id;
-        console.log('📋 Object response, got ID:', orderId);
       } else {
         throw new Error(`Invalid response type: ${typeof orderResult}`);
       }
@@ -216,8 +228,6 @@ const TakeOrderModal = ({ table, onClose }) => {
       if (!orderId) {
         throw new Error(`No order_id in response: ${JSON.stringify(orderResult)}`);
       }
-
-      console.log('✅ Order #' + orderId + ' created successfully');
 
       // ✅ Step 2: Prepare order details
       const orderDetails = cart.map(item => ({
@@ -229,19 +239,29 @@ const TakeOrderModal = ({ table, onClose }) => {
         status: 'in-kitchen'
       }));
 
-      console.log('📦 Order details to add:', orderDetails);
-
       // ✅ Step 3: Add order items to database
       const detailsResult = await addMultipleOrderDetails(orderDetails);
-      console.log('✅ Order items added:', detailsResult?.length || 0);
 
-      // ✅ Success message
+      // ✅ Success calculation
       const subtotal = calculateTotal();
       const tax = subtotal * 0.18;
       const total = subtotal + tax;
 
-      alert(
-        `🎉 Order #${orderId} Successfully Sent to Kitchen!\n\n` +
+      // ✅ DISMISS LOADING TOAST EARLY
+      toast.dismiss(loadingToastId);
+
+      // ✅ SUCCESS TOAST
+      toast.success(
+        `🎉 Order #${orderId} Successfully sent!\n📍 Table: #${table?.number || 1}\n${cart.length} items\n💰 Total: ₹${total.toFixed(2)}`,
+        {
+          position: 'top-right',
+          autoClose: 3000,
+          hideProgressBar: false,
+        }
+      );
+
+      console.log(
+        `Order #${orderId} Successfully Sent to Kitchen!\n\n` +
         `Customer: ${customerName}\n` +
         `Waiter: ${waiterName}\n` +
         `Table: #${table?.number || 1}\n` +
@@ -261,13 +281,16 @@ const TakeOrderModal = ({ table, onClose }) => {
       onClose();
 
     } catch (error) {
-      console.error('❌ Error submitting order:', error);
-      console.error('Stack trace:', error.stack);
-      
-      alert(
-        `❌ Failed to Submit Order\n\n` +
-        `Error: ${error.message}\n\n` +
-        `Check browser console (F12) for more details`
+      console.error('Error submitting order:', error);
+
+      // ✅ ERROR TOAST
+      toast.error(
+        `❌ Failed to Submit Order\n${error.message}`,
+        {
+          position: 'top-right',
+          autoClose: 4000,
+          hideProgressBar: false,
+        }
       );
     } finally {
       setSubmitting(false);
@@ -280,7 +303,7 @@ const TakeOrderModal = ({ table, onClose }) => {
       <div className="modal-overlay" onClick={onClose}>
         <div className="take-order-modal" onClick={(e) => e.stopPropagation()}>
           <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
-            ⏳ Loading menu...
+            Loading menu...
           </div>
         </div>
       </div>
@@ -316,7 +339,7 @@ const TakeOrderModal = ({ table, onClose }) => {
               />
               <input
                 type="text"
-                placeholder="🍽️ Waiter Name"
+                placeholder="👨‍💼 Waiter Name"
                 className="customer-name-input"
                 value={waiterName}
                 onChange={(e) => setWaiterName(e.target.value)}

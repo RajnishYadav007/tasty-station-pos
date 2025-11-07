@@ -1,4 +1,4 @@
-// src/context/OrderContext.jsx - ✅ WITH SUPABASE STATUS UPDATE
+// src/context/OrderContext.jsx - ✅ WITH DISH NAMES
 
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { getAllOrderDetailsWithOrders } from '../api/orderDetailsApi';
@@ -17,6 +17,7 @@ export const useOrders = () => {
 export const OrderProvider = ({ children }) => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [orderDetails, setOrderDetails] = useState({});  // ✅ CHANGE #1
   const isUpdatingRef = useRef(false);
 
   // ✅ Load from Supabase on mount
@@ -46,6 +47,25 @@ export const OrderProvider = ({ children }) => {
       
       setOrders(data);
       console.log('✅ Loaded:', data.length, 'orders');
+
+      // ✅ CHANGE #2 - Process order details with dish names
+      const details = {};
+      data.forEach(order => {
+        if (order.items && order.items.length > 0) {
+          details[order.id] = order.items.map(item => ({
+            dish_id: item.dish_id,
+            dish_name: item.dish_name || 'Unknown',  // ✅ GET DISH NAME
+            price: item.price,
+            quantity: item.quantity,
+            status: item.status,
+            order_detail_id: item.order_detail_id
+          }));
+        }
+      });
+      setOrderDetails(details);  // ✅ SAVE TO STATE
+      localStorage.setItem('orderDetails', JSON.stringify(details));
+      console.log('✅ Order details loaded with dish names');
+
     } catch (error) {
       console.error('❌ Error loading from Supabase:', error);
       
@@ -56,6 +76,12 @@ export const OrderProvider = ({ children }) => {
           const parsed = JSON.parse(saved);
           setOrders(parsed);
           console.log('📦 Fallback to localStorage:', parsed.length);
+        }
+
+        const savedDetails = localStorage.getItem('orderDetails');
+        if (savedDetails) {
+          const parsedDetails = JSON.parse(savedDetails);
+          setOrderDetails(parsedDetails);
         }
       } catch (e) {
         console.error('❌ Fallback error:', e);
@@ -150,6 +176,8 @@ export const OrderProvider = ({ children }) => {
   const value = {
     orders,
     loading,
+    orderDetails,  // ✅ CHANGE #3 - ADD THIS
+    setOrderDetails,  // ✅ CHANGE #3 - ADD THIS
     updateItemStatus,
     calculateElapsedTime,
     refreshOrders: loadOrdersFromSupabase
