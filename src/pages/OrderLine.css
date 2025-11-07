@@ -1,151 +1,216 @@
 /* src/pages/OrderLine.css */
 
-.orderline-page {
-  padding: 30px;
-  background: #F9FAFB;
-  min-height: 100vh;
+/* ===== CSS VARIABLES ===== */
+:root {
+  --color-primary: #14B8A6;
+  --color-primary-dark: #0D9488;
+  --color-white: #ffffff;
+  --color-bg: #F9FAFB;
+  --color-bg-light: #F3F4F6;
+  --color-border: #E5E7EB;
+  --color-text: #111827;
+  --color-text-secondary: #374151;
+  --color-text-tertiary: #6B7280;
+  --color-text-light: #9CA3AF;
+  
+  --color-danger: #EF4444;
+  --color-warning: #F59E0B;
+  --color-success: #10B981;
+  --color-info: #6366F1;
+  --color-danger-light: #FEF2F2;
+  --color-warning-light: #FEF3C7;
+  
+  --spacing-xs: 6px;
+  --spacing-sm: 12px;
+  --spacing-md: 16px;
+  --spacing-lg: 20px;
+  --spacing-xl: 24px;
+  --spacing-2xl: 30px;
+  
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 8px 20px rgba(0, 0, 0, 0.1);
+  
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
 }
 
+/* ===== BASE STYLES (MOBILE FIRST) ===== */
+.orderline-page {
+  padding: var(--spacing-lg);
+  background: var(--color-bg);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+}
+
+/* ===== HEADER SECTION ===== */
 .orderline-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 30px;
-  padding: 24px;
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-lg);
+  background: var(--color-white);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: var(--spacing-md);
 }
 
 .chef-icon {
-  color: #14B8A6;
+  color: var(--color-primary);
+  font-size: 28px;
+  flex-shrink: 0;
 }
 
 .orderline-header h1 {
-  font-size: 32px;
+  font-size: clamp(1.5rem, 5vw, 2rem);
   font-weight: 700;
-  color: #111827;
+  color: var(--color-text);
   margin: 0 0 6px 0;
+  line-height: 1.2;
 }
 
 .orderline-header p {
-  font-size: 16px;
-  color: #6B7280;
+  font-size: clamp(0.875rem, 2vw, 1rem);
+  color: var(--color-text-tertiary);
   margin: 0;
 }
 
 .header-stats {
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
 }
 
 .stat-badge {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 20px;
-  background: #14B8A6;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: 10px 14px;
+  background: var(--color-primary);
   color: white;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   font-weight: 600;
+  font-size: 13px;
+  min-height: 40px;
 }
 
-/* Kanban Board */
+/* ===== KANBAN BOARD ===== */
 .kanban-board {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
-  height: calc(100vh - 200px);
-}
-
-/* Kanban Column */
-.kanban-column {
-  background: white;
-  border-radius: 16px;
-  padding: 20px;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  gap: var(--spacing-lg);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  min-height: auto;
+}
+
+.kanban-board::-webkit-scrollbar {
+  height: 6px;
+}
+
+.kanban-board::-webkit-scrollbar-thumb {
+  background: var(--color-primary);
+  border-radius: 3px;
+}
+
+/* ===== KANBAN COLUMN ===== */
+.kanban-column {
+  background: var(--color-white);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-sm);
+  border-top: 4px solid transparent;
+  min-height: 400px;
+  min-width: 100%;
+  flex-shrink: 0;
 }
 
 .kanban-column.in-kitchen {
-  border-top: 4px solid #EF4444;
+  border-top-color: var(--color-danger);
 }
 
 .kanban-column.wait {
-  border-top: 4px solid #F59E0B;
+  border-top-color: var(--color-warning);
 }
 
 .kanban-column.ready {
-  border-top: 4px solid #10B981;
+  border-top-color: var(--color-success);
 }
 
 .kanban-column.served {
-  border-top: 4px solid #6366F1;
+  border-top-color: var(--color-info);
 }
 
-/* Column Header */
+/* ===== COLUMN HEADER ===== */
 .column-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 2px solid #E5E7EB;
+  margin-bottom: var(--spacing-lg);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 2px solid var(--color-border);
+  gap: var(--spacing-md);
 }
 
 .column-title {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 18px;
+  gap: var(--spacing-sm);
+  font-size: clamp(1rem, 3vw, 1.125rem);
   font-weight: 700;
-  color: #111827;
+  color: var(--color-text);
 }
 
 .kanban-column.in-kitchen .column-title svg {
-  color: #EF4444;
+  color: var(--color-danger);
 }
 
 .kanban-column.wait .column-title svg {
-  color: #F59E0B;
+  color: var(--color-warning);
 }
 
 .kanban-column.ready .column-title svg {
-  color: #10B981;
+  color: var(--color-success);
 }
 
 .kanban-column.served .column-title svg {
-  color: #6366F1;
+  color: var(--color-info);
 }
 
 .column-count {
   width: 32px;
   height: 32px;
-  background: #F3F4F6;
-  border-radius: 8px;
+  background: var(--color-bg-light);
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 16px;
-  color: #374151;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
 }
 
-/* Column Body - Scrollable */
+/* ===== COLUMN BODY ===== */
 .column-body {
   flex: 1;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding-right: 8px;
+  gap: var(--spacing-md);
+  padding-right: 6px;
+  -webkit-overflow-scrolling: touch;
 }
 
 .column-body::-webkit-scrollbar {
@@ -161,144 +226,164 @@
   background: transparent;
 }
 
-/* Order Ticket */
+/* ===== ORDER TICKET ===== */
 .order-ticket {
-  background: #FFFFFF;
-  border: 2px solid #E5E7EB;
-  border-radius: 12px;
-  padding: 16px;
-  transition: all 0.3s;
+  background: var(--color-white);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md);
+  transition: all 0.3s ease;
   cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  border-left: 4px solid transparent;
 }
 
 .order-ticket:hover {
   transform: translateY(-4px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-lg);
 }
 
 .order-ticket.high {
-  border-left: 4px solid #EF4444;
+  border-left-color: var(--color-danger);
 }
 
 .order-ticket.medium {
-  border-left: 4px solid #F59E0B;
+  border-left-color: var(--color-warning);
 }
 
 .order-ticket.low {
-  border-left: 4px solid #10B981;
+  border-left-color: var(--color-success);
 }
 
-/* Ticket Header */
+/* ===== TICKET HEADER ===== */
 .ticket-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #E5E7EB;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border);
+  flex-wrap: wrap;
 }
 
 .ticket-id-section {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--spacing-sm);
 }
 
 .ticket-id {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
-  color: #111827;
+  color: var(--color-text);
 }
 
 .table-badge {
   padding: 4px 10px;
-  background: #F3F4F6;
-  border-radius: 6px;
-  font-size: 12px;
+  background: var(--color-bg-light);
+  border-radius: var(--radius-md);
+  font-size: 11px;
   font-weight: 600;
-  color: #6B7280;
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
 }
 
 .ticket-time {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
-  color: #EF4444;
+  color: var(--color-danger);
+  white-space: nowrap;
 }
 
-/* Ticket Items */
+/* ===== TICKET ITEMS ===== */
 .ticket-items {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
 }
 
 .ticket-item {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--spacing-sm);
 }
 
 .item-qty {
   min-width: 26px;
   height: 26px;
-  background: #14B8A6;
+  background: var(--color-primary);
   color: white;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 12px;
   flex-shrink: 0;
 }
 
 .item-details {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   flex: 1;
+  min-width: 0;
 }
 
 .item-name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: #111827;
+  color: var(--color-text);
+  line-height: 1.3;
 }
 
 .item-notes {
-  font-size: 12px;
-  color: #F59E0B;
-  background: #FEF3C7;
-  padding: 4px 8px;
+  font-size: 11px;
+  color: #92400E;
+  background: var(--color-warning-light);
+  padding: 3px 6px;
   border-radius: 4px;
+  display: inline-block;
 }
 
-/* Ticket Footer */
+/* ===== TICKET FOOTER ===== */
 .ticket-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid #E5E7EB;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--color-border);
+  flex-wrap: wrap;
 }
 
 .waiter-name {
-  font-size: 13px;
-  color: #6B7280;
+  font-size: 12px;
+  color: var(--color-text-tertiary);
   font-weight: 500;
+  flex: 1;
+  min-width: 100px;
 }
 
 .move-btn {
-  padding: 8px 16px;
+  padding: 6px 12px;
   border: none;
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: var(--radius-md);
+  font-size: 11px;
   font-weight: 600;
   color: white;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
+  min-height: 32px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .move-btn:hover {
@@ -306,143 +391,347 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-/* Responsive */
-@media (max-width: 1400px) {
-  .kanban-board {
-    grid-template-columns: repeat(2, 1fr);
-    height: auto;
-  }
-}
-
-@media (max-width: 768px) {
-  .orderline-page {
-    padding: 16px;
-  }
-
-  .kanban-board {
-    grid-template-columns: 1fr;
-  }
-
-  .orderline-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
-  }
-}
-/* ✅ Individual Item Card Styles */
+/* ===== ITEM CARD (List View) ===== */
 .item-card {
-  background: white;
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 12px;
-  border: 2px solid #E5E7EB;
-  transition: all 0.3s;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md);
+  border: 2px solid var(--color-border);
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
+  width: 100%;
 }
 
 .item-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border-color: #14B8A6;
+  box-shadow: var(--shadow-lg);
+  border-color: var(--color-primary);
 }
 
 .item-card-header {
-  margin-bottom: 12px;
+  margin-bottom: var(--spacing-md);
 }
 
 .item-card-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: var(--spacing-sm);
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
 }
 
 .table-badge-small {
   background: #EFF6FF;
-  color: #3B82F6;
+  color: var(--color-info);
   padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 12px;
+  border-radius: var(--radius-md);
+  font-size: 11px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .item-time {
   font-size: 11px;
-  color: #6B7280;
+  color: var(--color-text-tertiary);
   font-weight: 500;
 }
 
 .item-card-body {
-  margin-bottom: 12px;
+  margin-bottom: var(--spacing-md);
 }
 
 .item-quantity-name {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+  flex-wrap: wrap;
 }
 
 .item-qty-large {
-  background: #F3F4F6;
-  color: #111827;
+  background: var(--color-bg-light);
+  color: var(--color-text);
   font-size: 16px;
   font-weight: 700;
   padding: 6px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   min-width: 45px;
   text-align: center;
+  flex-shrink: 0;
 }
 
 .item-name-large {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
-  color: #111827;
+  color: var(--color-text);
   flex: 1;
+  min-width: 200px;
 }
 
 .item-notes-card {
-  background: #FEF3C7;
+  background: var(--color-warning-light);
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 12px;
   color: #92400E;
-  margin-top: 8px;
+  margin-top: var(--spacing-sm);
 }
 
 .item-card-footer {
-  border-top: 1px solid #E5E7EB;
-  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--spacing-md);
 }
 
 .item-info-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: var(--spacing-sm);
   font-size: 12px;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
 }
 
 .customer-name-small,
 .waiter-name-small {
   font-size: 12px;
-  color: #6B7280;
+  color: var(--color-text-tertiary);
   font-weight: 500;
 }
 
 .move-btn-item {
   width: 100%;
-  padding: 10px;
+  padding: 10px 12px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: white;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
 }
 
 .move-btn-item:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* ===== TABLET BREAKPOINT (640px) ===== */
+@media (min-width: 640px) {
+  .orderline-page {
+    padding: var(--spacing-xl);
+  }
+
+  .orderline-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  .header-left {
+    flex: 1;
+  }
+
+  .header-stats {
+    flex-shrink: 0;
+  }
+
+  .kanban-board {
+    flex-direction: row;
+    min-height: calc(100vh - 280px);
+    overflow-x: auto;
+  }
+
+  .kanban-column {
+    min-width: 340px;
+    min-height: auto;
+  }
+}
+
+/* ===== TABLET BREAKPOINT (768px) ===== */
+@media (min-width: 768px) {
+  .orderline-page {
+    padding: var(--spacing-2xl);
+  }
+
+  .orderline-header {
+    padding: var(--spacing-xl);
+    margin-bottom: var(--spacing-xl);
+  }
+
+  .header-left {
+    gap: var(--spacing-lg);
+  }
+
+  .orderline-header h1 {
+    font-size: 28px;
+  }
+
+  .header-stats {
+    gap: var(--spacing-lg);
+  }
+
+  .kanban-board {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-xl);
+    min-height: calc(100vh - 280px);
+    overflow: visible;
+  }
+
+  .kanban-column {
+    min-width: auto;
+    min-height: 500px;
+  }
+
+  .ticket-header {
+    flex-wrap: nowrap;
+  }
+
+  .ticket-id-section {
+    flex: 1;
+  }
+
+  .item-quantity-name {
+    flex-wrap: nowrap;
+  }
+
+  .item-name-large {
+    min-width: auto;
+  }
+
+  .item-info-row {
+    flex-wrap: nowrap;
+  }
+}
+
+/* ===== LAPTOP BREAKPOINT (1024px) ===== */
+@media (min-width: 1024px) {
+  .kanban-board {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .kanban-column {
+    min-height: calc(100vh - 280px);
+  }
+
+  .orderline-header {
+    gap: 0;
+  }
+
+  .stat-badge {
+    padding: 12px 20px;
+    font-size: 14px;
+  }
+}
+
+/* ===== EXTRA LARGE SCREENS (1400px) ===== */
+@media (min-width: 1400px) {
+  .kanban-column {
+    min-height: calc(100vh - 300px);
+  }
+
+  .kanban-column {
+    padding: var(--spacing-xl);
+  }
+
+  .column-body {
+    gap: var(--spacing-lg);
+  }
+}
+
+/* ===== LANDSCAPE MODE ===== */
+@media (max-height: 600px) {
+  .orderline-page {
+    min-height: auto;
+  }
+
+  .kanban-board {
+    min-height: auto;
+  }
+
+  .kanban-column {
+    min-height: auto;
+    max-height: 70vh;
+  }
+
+  .column-body {
+    max-height: 60vh;
+  }
+
+  .orderline-header {
+    padding: var(--spacing-md);
+  }
+
+  .orderline-header h1 {
+    font-size: 20px;
+  }
+}
+
+/* ===== EXTRA SMALL SCREENS (320px) ===== */
+@media (max-width: 360px) {
+  .orderline-page {
+    padding: var(--spacing-md);
+    gap: var(--spacing-md);
+  }
+
+  .orderline-header {
+    padding: var(--spacing-md);
+    gap: var(--spacing-md);
+  }
+
+  .header-left {
+    gap: var(--spacing-sm);
+  }
+
+  .orderline-header h1 {
+    font-size: 18px;
+  }
+
+  .orderline-header p {
+    font-size: 13px;
+  }
+
+  .header-stats {
+    gap: var(--spacing-sm);
+  }
+
+  .stat-badge {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .kanban-column {
+    padding: var(--spacing-md);
+    min-height: 300px;
+  }
+
+  .column-header {
+    margin-bottom: var(--spacing-md);
+    padding-bottom: var(--spacing-sm);
+  }
+
+  .column-title {
+    font-size: 14px;
+  }
+
+  .ticket-id {
+    font-size: 13px;
+  }
+
+  .item-name {
+    font-size: 12px;
+  }
+
+  .move-btn {
+    padding: 6px 10px;
+    font-size: 10px;
+  }
 }

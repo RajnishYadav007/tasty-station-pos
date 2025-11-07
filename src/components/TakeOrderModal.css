@@ -49,6 +49,7 @@
   gap: 10px;
   margin-bottom: 24px;
   flex-wrap: wrap;
+  overflow-x: auto;
 }
 
 .category-tab {
@@ -60,6 +61,8 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .category-tab.active {
@@ -113,20 +116,20 @@
 .dish-info-modal h4 {
   font-size: 16px;
   font-weight: 600;
-  margin-bottom: 4px;
+  margin: 0 0 4px 0;
 }
 
 .dish-category-modal {
   font-size: 12px;
   color: #6B7280;
-  margin-bottom: 8px;
+  margin: 0 0 8px 0;
 }
 
 .dish-price-modal {
   font-size: 18px;
   font-weight: 700;
   color: #14B8A6;
-  margin-bottom: 12px;
+  margin: 0 0 12px 0;
 }
 
 .add-dish-btn-modal {
@@ -169,6 +172,7 @@
 .cart-header h3 {
   font-size: 20px;
   font-weight: 700;
+  margin: 0;
 }
 
 .cart-items {
@@ -211,12 +215,13 @@
 .item-details h4 {
   font-size: 15px;
   font-weight: 600;
-  margin-bottom: 4px;
+  margin: 0 0 4px 0;
 }
 
 .item-details p {
   font-size: 14px;
   color: #6B7280;
+  margin: 0;
 }
 
 .quantity-controls {
@@ -311,9 +316,13 @@
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(20, 184, 166, 0.3);
 }
+
 /* Customer Name Input */
 .customer-input-section {
   margin-bottom: 16px;
+  display: flex;
+  gap: 12px;
+  flex-direction: column;
 }
 
 .customer-name-input {
@@ -336,4 +345,277 @@
 .customer-name-input::placeholder {
   color: #9CA3AF;
   font-weight: 400;
+}
+
+/* ===== MOBILE RESPONSIVE: MAX 767px ===== */
+@media (max-width: 767px) {
+  .take-order-modal {
+    width: 100%;
+    height: 100vh;
+    border-radius: 0;
+  }
+
+  .modal-body-horizontal {
+    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Menu Section */
+  .menu-section {
+    padding: 16px;
+    border-right: none;
+    border-bottom: 1px solid #E5E7EB;
+    flex: 1;
+    min-height: 50%;
+  }
+
+  /* Cart Section - FIXED LAYOUT */
+  .cart-section {
+    padding: 16px;
+    flex-shrink: 0;
+    max-height: 50%;
+    border-top: 2px solid #E5E7EB;
+  }
+
+  .cart-header {
+    margin-bottom: 14px;
+  }
+
+  .cart-header h3 {
+    font-size: 16px;
+  }
+
+  .cart-items {
+    margin-bottom: 14px;
+    gap: 10px;
+    max-height: 200px;
+  }
+
+  .cart-item {
+    padding: 12px;
+  }
+
+  .cart-item-header {
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .item-emoji {
+    font-size: 24px;
+  }
+
+  .item-details h4 {
+    font-size: 13px;
+  }
+
+  .item-details p {
+    font-size: 12px;
+  }
+
+  .quantity-controls {
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .quantity-controls button {
+    width: 28px;
+    height: 28px;
+  }
+
+  .quantity-controls span {
+    font-size: 14px;
+  }
+
+  .item-notes-input {
+    padding: 6px 10px;
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+
+  .item-total {
+    font-size: 14px;
+  }
+
+  /* Cart Total - COMPACT */
+  .cart-total {
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    font-size: 14px;
+  }
+
+  .total-amount {
+    font-size: 18px;
+  }
+
+  .submit-order-btn {
+    padding: 12px;
+    font-size: 14px;
+  }
+
+  /* Search & Filters */
+  .customer-input-section {
+    margin-bottom: 12px;
+    gap: 10px;
+  }
+
+  .customer-name-input {
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+
+  .search-box {
+    padding: 10px 12px;
+    margin-bottom: 14px;
+  }
+
+  .category-tabs {
+    margin-bottom: 14px;
+    gap: 8px;
+  }
+
+  .category-tab {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .dishes-grid-modal {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+  }
+
+  .dish-emoji-modal {
+    font-size: 36px;
+  }
+}
+
+/* ===== MOBILE PHONE: MAX 479px ===== */
+@media (max-width: 479px) {
+  .menu-section {
+    padding: 12px;
+  }
+
+  .cart-section {
+    padding: 12px;
+  }
+
+  .cart-header h3 {
+    font-size: 14px;
+  }
+
+  .cart-header {
+    margin-bottom: 12px;
+  }
+
+  .cart-items {
+    margin-bottom: 12px;
+    gap: 8px;
+  }
+
+  .cart-item {
+    padding: 10px;
+  }
+
+  .item-emoji {
+    font-size: 20px;
+  }
+
+  .item-details h4 {
+    font-size: 12px;
+  }
+
+  .item-details p {
+    font-size: 11px;
+  }
+
+  .quantity-controls {
+    gap: 8px;
+  }
+
+  .quantity-controls button {
+    width: 26px;
+    height: 26px;
+    font-size: 12px;
+  }
+
+  .quantity-controls span {
+    font-size: 13px;
+  }
+
+  .item-notes-input {
+    font-size: 11px;
+  }
+
+  .item-total {
+    font-size: 13px;
+  }
+
+  .cart-total {
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+
+  .total-amount {
+    font-size: 16px;
+  }
+
+  .submit-order-btn {
+    padding: 10px;
+    font-size: 13px;
+  }
+
+  .customer-input-section {
+    gap: 8px;
+  }
+
+  .customer-name-input {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  .search-box {
+    padding: 8px 10px;
+    margin-bottom: 12px;
+  }
+
+  .category-tabs {
+    margin-bottom: 12px;
+    gap: 6px;
+  }
+
+  .category-tab {
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+
+  .dishes-grid-modal {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .dish-card-modal {
+    padding: 12px;
+  }
+
+  .dish-emoji-modal {
+    font-size: 32px;
+  }
+
+  .dish-info-modal h4 {
+    font-size: 12px;
+  }
+
+  .dish-category-modal {
+    font-size: 10px;
+  }
+
+  .dish-price-modal {
+    font-size: 14px;
+  }
+
+  .add-dish-btn-modal {
+    padding: 6px;
+    font-size: 12px;
+  }
 }

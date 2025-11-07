@@ -81,10 +81,6 @@ const ManageTable = () => {
   useEffect(() => {
     console.log('🔄 Loading bills and orders...');
     loadBills();
-    toast.info('📊 Loading bills...', {
-      position: 'bottom-left',
-      autoClose: 1500,
-    });
   }, [loadBills]);
 
   // ✅ DEBUG: Monitor bills & orderDetails

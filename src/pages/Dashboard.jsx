@@ -1,8 +1,8 @@
-// src/pages/Dashboard/Dashboard.jsx - ✅ UPDATED WITH STAFF LIST + DELETE
+// src/pages/Dashboard/Dashboard.jsx - ✅ FULLY CORRECTED & WORKING
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';  // ✅ FIX PATH
+import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 import { 
   TrendingUp, 
@@ -35,11 +35,11 @@ import {
   sendPaymentReadyNotification
 } from '../api/notificationApi';
 
-import { getOrders, getOrderStatistics, getTodaysOrders } from '../api/orderApi';  // ✅ FIX PATH
-import { getTotalRevenue, getTodaysRevenue, getBillStatistics } from '../api/billApi';  // ✅ FIX PATH
-import { getDishes } from '../api/dishApi';  // ✅ FIX PATH
-import { getUsers } from '../api/userApi';  // ✅ FIX PATH
-import { getOrderDetailsByOrderId } from '../api/orderDetailsApi';  // ✅ FIX PATH
+import { getOrders, getOrderStatistics, getTodaysOrders } from '../api/orderApi';
+import { getTotalRevenue, getTodaysRevenue, getBillStatistics, getLastMonthRevenue } from '../api/billApi';
+import { getDishes } from '../api/dishApi';
+import { getUsers } from '../api/userApi';
+import { getOrderDetailsByOrderId } from '../api/orderDetailsApi';
 
 import './Dashboard.css';
 
@@ -59,13 +59,14 @@ const Dashboard = () => {
     todayOrders: 0,
     uniqueCustomers: 0,
     activeNow: 0,
-    pendingActions: 0
+    pendingActions: 0,
+    revenueChange: 0,        // ✅ ADD
+    revenuePercentage: '+0%' // ✅ ADD
   });
   
   const [recentOrders, setRecentOrders] = useState([]);
   const [topItems, setTopItems] = useState([]);
   
-  // ✅ STAFF COUNTS + LISTS
   const [staffData, setStaffData] = useState({
     waiters: [],
     chefs: []
@@ -109,7 +110,8 @@ const Dashboard = () => {
         totalRevenue,
         todayRevenue,
         usersData,
-        dishesData
+        dishesData,
+        lastMonthRevenue  // ✅ ADD
       ] = await Promise.all([
         getOrders(),
         getOrderStatistics(),
@@ -117,8 +119,22 @@ const Dashboard = () => {
         getTotalRevenue(),
         getTodaysRevenue(),
         getUsers(),
-        getDishes()
+        getDishes(),
+        getLastMonthRevenue()  // ✅ ADD
       ]);
+
+      // ✅ CALCULATE PERCENTAGE CHANGE
+      let changePercentage = '+0%';
+      let isTrendingUp = true;
+      
+      if (lastMonthRevenue > 0) {
+        const change = ((totalRevenue - lastMonthRevenue) / lastMonthRevenue) * 100;
+        changePercentage = `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
+        isTrendingUp = change >= 0;
+      } else if (totalRevenue > 0) {
+        changePercentage = '+100%';
+        isTrendingUp = true;
+      }
 
       const calculatedStats = {
         totalRevenue: totalRevenue || 0,
@@ -126,8 +142,10 @@ const Dashboard = () => {
         totalOrders: ordersData.length,
         todayOrders: todaysOrdersData.length,
         uniqueCustomers: usersData.length,
-        activeNow: todaysOrdersData.filter(o => o.status === 'pending').length,
-        pendingActions: orderStats.pending || 0
+        activeNow: todaysOrdersData.filter(o => o.status === 'in-kitchen').length,
+        pendingActions: orderStats.pending || 0,
+        revenueChange: isTrendingUp,           // ✅ ADD
+        revenuePercentage: changePercentage    // ✅ ADD
       };
 
       setStats(calculatedStats);
@@ -142,7 +160,6 @@ const Dashboard = () => {
     }
   };
 
-  // ✅ LOAD STAFF DATA WITH DETAILED LIST
   const loadStaffData = async () => {
     try {
       setLoading(true);
@@ -186,14 +203,21 @@ const Dashboard = () => {
               timeAgo = `${hours} hour${hours > 1 ? 's' : ''} ago`;
             }
 
+            // ✅ CORRECT STATUS MAPPING
+            let statusText = 'In Kitchen';
+            if (order.status === 'completed') statusText = 'Completed';
+            else if (order.status === 'in-kitchen') statusText = 'In Kitchen';
+            else if (order.status === 'ready') statusText = 'Ready';
+            else if (order.status === 'served') statusText = 'Served';
+
             return {
               id: order.order_id.toString().slice(-5),
-              table: 'Table 1',
+              table: `Table ${order.table_number || 1}`,
               items: details.length,
               amount: total,
-              status: order.status === 'completed' ? 'Completed' : order.status === 'pending' ? 'Pending' : 'In Progress',
+              status: statusText,
               time: timeAgo,
-              customer: `Guest - Table ${order.order_id}`
+              customer: order.customer_name || `Guest - Table ${order.order_id}`
             };
           } catch (err) {
             console.error('Error processing order:', err);
@@ -287,7 +311,6 @@ const Dashboard = () => {
     }
   };
 
-  // ✅ DELETE WAITER
   const handleDeleteWaiter = async (waiterId) => {
     if (window.confirm('Are you sure you want to delete this waiter?')) {
       try {
@@ -305,7 +328,6 @@ const Dashboard = () => {
     }
   };
 
-  // ✅ DELETE CHEF
   const handleDeleteChef = async (chefId) => {
     if (window.confirm('Are you sure you want to delete this chef?')) {
       try {
@@ -328,13 +350,14 @@ const Dashboard = () => {
     navigate('/login');
   };
 
+  // ✅ DYNAMIC STATS DATA
   const statsData = [
     { 
       id: 1, 
       title: 'Total Revenue', 
       value: `₹${Math.round(stats.totalRevenue).toLocaleString()}`, 
-      change: '+20.1%', 
-      trending: 'up', 
+      change: stats.revenuePercentage,              // ✅ DYNAMIC
+      trending: stats.revenueChange ? 'up' : 'down', // ✅ DYNAMIC
       icon: DollarSign, 
       bgColor: '#F0FDFA',
       iconColor: '#14B8A6',
@@ -407,10 +430,12 @@ const Dashboard = () => {
     switch(status.toLowerCase()) {
       case 'completed':
         return 'status-completed';
-      case 'in progress':
+      case 'in kitchen':
         return 'status-in-progress';
-      case 'pending':
-        return 'status-pending';
+      case 'ready':
+        return 'status-ready';
+      case 'served':
+        return 'status-served';
       default:
         return '';
     }
@@ -774,7 +799,7 @@ const Dashboard = () => {
               </form>
             </div>
 
-            {/* ✅ STAFF OVERVIEW WITH LIST + DELETE */}
+            {/* Staff Overview */}
             <div className="dashboard-card staff-count-card">
               <div className="card-header">
                 <h2>👥 Staff Overview</h2>

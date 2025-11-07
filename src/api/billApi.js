@@ -76,9 +76,9 @@ export async function getBillsByDateRange(startDate, endDate) {
   const { data, error } = await supabase
     .from('Bill')
     .select('*')
-    .gte('bill_date', startDate)
-    .lte('bill_date', endDate)
-    .order('bill_date', { ascending: false });
+    .gte('created_at', startDate)
+    .lte('created_at', endDate)
+    .order('created_at', { ascending: false });
   
   if (error) {
     console.error('❌ Error fetching bills by date range:', error);
@@ -97,8 +97,8 @@ export async function getTodaysBills() {
   const { data, error } = await supabase
     .from('Bill')
     .select('*')
-    .gte('bill_date', today.toISOString())
-    .lt('bill_date', tomorrow.toISOString())
+    .gte('created_at', today.toISOString())
+    .lt('created_at', tomorrow.toISOString())
     .order('bill_id', { ascending: false });
   
   if (error) {
@@ -118,10 +118,11 @@ export async function addBill(billData) {
       order_id: billData.order_id,
       user_id: billData.user_id || 1,
       total_amount: billData.total_amount,
+      final_amount: billData.final_amount || billData.total_amount,
       tax_amount: billData.tax_amount || 0,
       payment_method: billData.payment_method || 'Cash',
       payment_status: billData.payment_status || 'Pending',
-      bill_date: billData.bill_date || new Date().toISOString()
+      created_at: billData.created_at || new Date().toISOString()
     }])
     .select();
   
@@ -155,7 +156,7 @@ export async function updatePaymentStatus(billId, status) {
     .from('Bill')
     .update({ 
       payment_status: status,
-      bill_date: new Date().toISOString()
+      created_at: new Date().toISOString()
     })
     .eq('bill_id', billId)
     .select();
@@ -203,9 +204,9 @@ export async function getTotalRevenue() {
     throw error;
   }
 
-  const total = data.reduce((sum, bill) => {
+  const total = data?.reduce((sum, bill) => {
     return sum + (parseFloat(bill.final_amount) || 0);
-  }, 0);
+  }, 0) || 0;
 
   return total;
 }
@@ -216,17 +217,17 @@ export async function getRevenueByDateRange(startDate, endDate) {
     .from('Bill')
     .select('final_amount')
     .eq('payment_status', 'Paid')
-    .gte('bill_date', startDate)
-    .lte('bill_date', endDate);
+    .gte('created_at', startDate)
+    .lte('created_at', endDate);
   
   if (error) {
     console.error('❌ Error calculating revenue:', error);
     throw error;
   }
 
-  const total = data.reduce((sum, bill) => {
+  const total = data?.reduce((sum, bill) => {
     return sum + (parseFloat(bill.final_amount) || 0);
-  }, 0);
+  }, 0) || 0;
 
   return total;
 }
@@ -285,6 +286,55 @@ export async function getBillStatistics() {
     throw error;
   }
 }
+
+// src/api/billApi.js - ADD THESE FUNCTIONS
+
+// ✅ Get last month revenue
+export async function getLastMonthRevenue() {
+  try {
+    const today = new Date();
+    const firstDayThisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastDayLastMonth = new Date(firstDayThisMonth);
+    lastDayLastMonth.setDate(0); // Get last day of previous month
+    const firstDayLastMonth = new Date(lastDayLastMonth.getFullYear(), lastDayLastMonth.getMonth(), 1);
+
+    const { data, error } = await supabase
+      .from('Bill')
+      .select('final_amount')
+      .eq('payment_status', 'Paid')
+      .gte('created_at', firstDayLastMonth.toISOString())
+      .lte('created_at', lastDayLastMonth.toISOString());
+    
+    if (error) throw error;
+
+    const total = data?.reduce((sum, bill) => {
+      return sum + (parseFloat(bill.final_amount) || 0);
+    }, 0) || 0;
+
+    return total;
+  } catch (error) {
+    console.error('❌ Error calculating last month revenue:', error);
+    return 0;
+  }
+}
+
+// ✅ Calculate percentage change
+export async function getRevenuePercentageChange() {
+  try {
+    const [thisMonth, lastMonth] = await Promise.all([
+      getTodaysRevenue(),  // Or use current month function
+      getLastMonthRevenue()
+    ]);
+
+    if (lastMonth === 0) return 0;
+    const change = ((thisMonth - lastMonth) / lastMonth) * 100;
+    return change.toFixed(1);
+  } catch (error) {
+    console.error('❌ Error calculating percentage:', error);
+    return 0;
+  }
+}
+
 
 // ✅ Create alias for Customers.jsx compatibility
 export const createBill = addBill;
