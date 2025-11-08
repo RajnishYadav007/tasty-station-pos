@@ -1,4 +1,5 @@
-// src/pages/Customers/Customers.jsx - ✅ WITH TOASTIFY NOTIFICATIONS
+// src/pages/Customers/Customers.jsx - 
+import { startBillSession } from '../api/billSessionApi';
 
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';  // ✅ IMPORT TOAST
@@ -34,32 +35,46 @@ const Customers = () => {
     avgBill: 0
   });
 
-  // ✅ Handle Mark as Paid - WITH TOAST
-  const handleMarkAsPaid = async (billId) => {
-    try {
-      const updated = await markBillAsPaid(billId);
-      if (updated) {
-        if (selectedBill?.bill_id === billId) {
-          setSelectedBill({...selectedBill, payment_status: 'Paid'});
-        }
-        // ✅ SUCCESS TOAST
-        toast.success('💰 Payment Received! Bill marked as PAID!', {
-          position: 'top-right',
-          autoClose: 3000,
-          hideProgressBar: false,
-          closeOnClick: true,
-          pauseOnHover: true,
-          draggable: true,
-        });
+// ✅ Handle Mark as Paid - WITH TABLE CLEARING
+const handleMarkAsPaid = async (billId) => {
+  if (!window.confirm('Mark this bill as paid?')) return;
+  
+  try {
+    console.log(`💰 Marking bill #${billId} as paid from Customers page...`);
+    
+    const updated = await markBillAsPaid(billId);
+    
+    if (updated) {
+      console.log('✅ Bill marked as paid successfully!');
+      
+      // Update selected bill if viewing it
+      if (selectedBill?.bill_id === billId) {
+        setSelectedBill({...selectedBill, payment_status: 'Paid'});
       }
-    } catch (err) {
-      // ✅ ERROR TOAST
-      toast.error('❌ Error: ' + err.message, {
+      
+      // Reload bills to show updated status
+      await loadBills();
+      
+      // ✅ SUCCESS TOAST
+      toast.success('💰 Payment Received! Table cleared!', {
         position: 'top-right',
         autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
       });
     }
-  };
+  } catch (err) {
+    console.error('❌ Error marking bill as paid:', err);
+    // ✅ ERROR TOAST
+    toast.error('❌ Failed to mark bill as paid', {
+      position: 'top-right',
+      autoClose: 3000,
+    });
+  }
+};
+
 
   // ✅ Load bills on mount - WITH TOAST
   useEffect(() => {
@@ -100,13 +115,22 @@ const Customers = () => {
   }, [bills]);
 
   // ✅ Calculate bill details from order details
-  const calculateBillDetails = (bill) => {
-    const items = orderDetails[bill.order_id] || [];
-    
-    const itemsWithNames = items.map(item => ({
+const calculateBillDetails = (bill) => {
+  const items = orderDetails[bill.order_id] || [];
+  
+  // ✅ FETCH DISH NAMES FROM SUPABASE IF NOT PRESENT
+  const itemsWithNames = items.map(item => {
+    // Check if dish_name already exists
+    if (item.dish_name && item.dish_name !== `Dish #${item.dish_id}`) {
+      return { ...item, dish_name: item.dish_name };
+    }
+    // If not, you'll need to fetch from your dishes list in context
+    return {
       ...item,
-      dish_name: item.dish_name || `Dish #${item.dish_id}`
-    }));
+      dish_name: item.dish_name || item.Dish?.dish_name || `Dish #${item.dish_id}`
+    };
+  });
+
     
     const subtotal = itemsWithNames.reduce((sum, item) => {
       const price = parseFloat(item.price) || 0;

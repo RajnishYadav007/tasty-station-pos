@@ -1,4 +1,4 @@
-// src/pages/ManageTable/ManageTable.jsx - ✅ EXACTLY LIKE CUSTOMERS.JSX
+// src/pages/ManageTable/ManageTable.jsx - ✅ WITH NOTIFICATIONS (WORKING CODE + NOTIFICATIONS)
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -9,17 +9,15 @@ import {
   Check, 
   ShoppingCart, 
   Receipt, 
-  Download,
-  Eye,
-  Calendar,
-  FileText,
-  Clock
+  Download
 } from 'lucide-react';
+
+import { supabase } from '../api/supabaseClient';
 import { 
   sendTableOccupiedNotification,
-  sendPaymentReadyNotification 
+  sendPaymentReadyNotification,
 } from '../api/notificationApi';
-import { useBill } from '../context/BillContext'; // ✅ USE BILLCONTEXT LIKE CUSTOMERS
+import { useBill } from '../context/BillContext';
 import { usePayment } from '../context/PaymentContext';
 import TakeOrderModal from '../components/TakeOrderModal';
 import './ManageTable.css';
@@ -27,7 +25,6 @@ import './ManageTable.css';
 const ManageTable = () => {
   const navigate = useNavigate();
   
-  // ✅ USE BILLCONTEXT (LIKE CUSTOMERS.JSX)
   const { 
     bills, 
     orderDetails, 
@@ -77,64 +74,79 @@ const ManageTable = () => {
     localStorage.setItem('restaurantTables', JSON.stringify(tables));
   }, [tables]);
 
-  // ✅ LOAD BILLS ON MOUNT (LIKE CUSTOMERS.JSX)
   useEffect(() => {
     console.log('🔄 Loading bills and orders...');
     loadBills();
   }, [loadBills]);
 
-  // ✅ DEBUG: Monitor bills & orderDetails
   useEffect(() => {
     console.log('💰 BILLS:', bills);
     console.log('📋 ORDER DETAILS:', orderDetails);
-    
-    if (bills && bills.length > 0) {
-      console.log('✅ Total Bills:', bills.length);
-      bills.forEach(bill => {
-        const items = orderDetails[bill.order_id] || [];
-        console.log(`Bill ${bill.bill_id}: Order ${bill.order_id}, Items: ${items.length}`);
-      });
-    } else {
-      console.log('⚠️ No bills data!');
-    }
   }, [bills, orderDetails]);
+
+  // ✅ POLLING - REFRESH EVERY 2 SECONDS (UNCHANGED)
+  useEffect(() => {
+    console.log('🔄 Starting 2-second polling for table updates...');
+    
+    const pollInterval = setInterval(async () => {
+      try {
+        const { data, error } = await supabase
+          .from('Table')
+          .select('*')
+          .order('table_id', { ascending: true });
+
+        if (error) {
+          console.error('❌ Polling error:', error.message);
+          return;
+        }
+
+        if (data && data.length > 0) {
+          console.log('✅ Tables synced from DB:', data.length);
+          
+          const formattedTables = data.map(dbTable => ({
+            id: dbTable.table_id,
+            number: dbTable.table_number,
+            capacity: dbTable.table_capacity,
+            status: dbTable.table_status?.toLowerCase() || 'available',
+            area: dbTable.area || 'Main Dining',
+            occupied_by: dbTable.occupied_by
+          }));
+
+          setTables(formattedTables);
+        }
+      } catch (error) {
+        console.error('❌ Polling error:', error);
+      }
+    }, 2000);
+
+    return () => {
+      clearInterval(pollInterval);
+      console.log('🔌 Polling stopped');
+    };
+  }, []);
 
   const areas = ['Main Dining', 'Terrace', 'Outdoor'];
 
-  // ✅ GET TABLE BILLS (LIKE CUSTOMERS.JSX - USES orderDetails)
   const getTableBills = (tableNumber) => {
     if (!bills || bills.length === 0) {
-      console.log('❌ No bills found');
       return [];
     }
 
-    // Filter bills for this table by checking orderDetails
     const tableBills = bills.filter(bill => {
       const items = orderDetails[bill.order_id] || [];
-      // Check if any order item has this table number (you might need to adjust this based on your data structure)
       return items.length > 0;
     });
     
-    console.log(`📊 Table ${tableNumber} - Found ${tableBills.length} bills`);
     return tableBills.sort((a, b) => 
       new Date(b.created_at || b.bill_date) - new Date(a.created_at || a.bill_date)
     );
   };
 
-  // ✅ GET MOST RECENT BILL FOR TABLE
   const getTableBill = (tableNumber) => {
     const tableBills = getTableBills(tableNumber);
-    if (tableBills.length === 0) {
-      console.log('❌ No bill found for table', tableNumber);
-      return null;
-    }
-    
-    const recentBill = tableBills[0];
-    console.log('✅ Most Recent Bill:', recentBill.bill_id);
-    return recentBill;
+    return tableBills.length > 0 ? tableBills[0] : null;
   };
 
-  // ✅ CALCULATE BILL DETAILS (EXACTLY LIKE CUSTOMERS.JSX)
   const calculateBillDetails = (bill) => {
     if (!bill) {
       return { subtotal: 0, tax: 0, total: 0, items: [] };
@@ -159,7 +171,6 @@ const ManageTable = () => {
     return { subtotal, tax, total, items: itemsWithNames };
   };
 
-  // ✅ FORMAT DATE (LIKE CUSTOMERS.JSX)
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     try {
@@ -184,25 +195,46 @@ const ManageTable = () => {
     setShowGuestModal(true);
   };
 
-// ✅ NEW CODE - ADD NOTIFICATION
-const handleConfirmGuests = () => {
-  if (tempTable && guestCount > 0) {
-    changeTableStatus(tempTable.id, 'occupied');
-    setOrderTable(tempTable);
-    setShowGuestModal(false);
-    setShowTakeOrderModal(true);
-    setTempTable(null);
-    
-    // 🔔 SEND NOTIFICATION
-    sendTableOccupiedNotification(tempTable.number, `${guestCount} guests`);
-    
-    toast.success(`✅ Table #${tempTable.number} occupied with ${guestCount} guests!`, {
-      position: 'top-right',
-      autoClose: 2000,
-    });
-  }
-};
+  // ✅ CONFIRM GUESTS - WITH NOTIFICATION (ADDED)
+  const handleConfirmGuests = async () => {
+    if (tempTable && guestCount > 0) {
+      try {
+        // ✅ UPDATE DATABASE
+        const { error } = await supabase
+          .from('Table')
+          .update({
+            table_status: 'Occupied',
+            occupied_by: 1,
+            updated_at: new Date().toISOString()
+          })
+          .eq('table_id', tempTable.id);
 
+        if (error) throw error;
+
+        changeTableStatus(tempTable.id, 'occupied');
+        setOrderTable(tempTable);
+        setShowGuestModal(false);
+        setShowTakeOrderModal(true);
+        setTempTable(null);
+        
+        // ✅ SEND NOTIFICATION (NEW - NON-BLOCKING)
+        try {
+          await sendTableOccupiedNotification(tempTable.number, `${guestCount} guests`);
+          console.log('✅ Table occupied notification sent');
+        } catch (notifError) {
+          console.warn('⚠️ Notification failed (non-critical):', notifError);
+        }
+        
+        toast.success(`✅ Table #${tempTable.number} occupied with ${guestCount} guests!`, {
+          position: 'top-right',
+          autoClose: 2000,
+        });
+      } catch (error) {
+        console.error('❌ Error:', error);
+        toast.error('Failed to occupy table', { position: 'top-right' });
+      }
+    }
+  };
 
   const handleOccupiedClick = (table) => {
     setOrderTable(table);
@@ -215,13 +247,9 @@ const handleConfirmGuests = () => {
   };
 
   const handleGenerateBill = (table) => {
-    console.log('📊 BILL GENERATION - Table:', table.number);
-    console.log('💰 Available Bills:', bills.length);
-    
     const tableBill = getTableBill(table.number);
     
     if (!tableBill) {
-      console.log('❌ No bill found!');
       toast.error(`⚠️ No bills for Table #${table.number}. Place order first!`, {
         position: 'top-right',
         autoClose: 3000,
@@ -229,7 +257,6 @@ const handleConfirmGuests = () => {
       return;
     }
     
-    console.log('✅ Bill found:', tableBill.bill_id);
     setBillTable(table);
     setShowBillModal(true);
     
@@ -239,7 +266,6 @@ const handleConfirmGuests = () => {
     });
   };
 
-  // ✅ PRINT BILL (LIKE CUSTOMERS.JSX)
   const handlePrintBill = (bill) => {
     try {
       const billDetails = calculateBillDetails(bill);
@@ -313,7 +339,7 @@ const handleConfirmGuests = () => {
       printWindow.document.close();
       printWindow.print();
       
-      toast.success(`📄 Bill printed for Table #${billTable.number}!`, {
+      toast.success(`📄 Bill printed!`, {
         position: 'bottom-right',
         autoClose: 2000,
       });
@@ -323,87 +349,89 @@ const handleConfirmGuests = () => {
     }
   };
 
-const handleBillPayment = async () => {
-  if (!billTable) return;
+  // ✅ BILL PAYMENT - WITH NOTIFICATION (ADDED)
+  const handleBillPayment = async () => {
+    if (!billTable) return;
 
-  const tableBill = getTableBill(billTable.number);
-  
-  if (!tableBill) {
-    toast.error('⚠️ No bill found!', {
-      position: 'top-right',
-      autoClose: 2000,
-    });
-    return;
-  }
-
-  // ✅ DECLARE loadingToast OUTSIDE try block
-  let loadingToast = null;
-
-  try {
-    setBillLoading(true);
-    const billDetails = calculateBillDetails(tableBill);
-
-    console.log('💳 Processing payment for Table #' + billTable.number);
-
-    // ✅ CREATE LOADING TOAST & STORE ID
-    loadingToast = toast.loading('⏳ Processing payment...', {
-      position: 'top-center',
-      closeOnClick: false,
-      closeButton: false,
-    });
-
-    // Mark bill as paid
-    await markBillAsPaidContext(tableBill.bill_id);
-
-    // Reload bills
-    await loadBills();
-
-    // Change table status
-    changeTableStatus(billTable.id, 'available');
-
-    // 🔔 SEND PAYMENT NOTIFICATION
-sendPaymentReadyNotification(tableBill.bill_id, billDetails.total, billTable.number);
+    const tableBill = getTableBill(billTable.number);
     
-    // ✅ DISMISS LOADING TOAST
-    if (loadingToast) {
-      toast.dismiss(loadingToast);
+    if (!tableBill) {
+      toast.error('⚠️ No bill found!', {
+        position: 'top-right',
+        autoClose: 2000,
+      });
+      return;
     }
-    
-    // ✅ SHOW SUCCESS TOAST
-    toast.success(
-      `✅ Payment Successful!\n💰 Amount: ₹${billDetails.total.toFixed(2)}\n🟢 Table #${billTable.number} available!`,
-      {
+
+    let loadingToast = null;
+
+    try {
+      setBillLoading(true);
+      const billDetails = calculateBillDetails(tableBill);
+
+      loadingToast = toast.loading('⏳ Processing payment...', {
         position: 'top-center',
-        autoClose: 3000,
+        closeOnClick: false,
+        closeButton: false,
+      });
+
+      // ✅ MARK BILL AS PAID
+      await markBillAsPaidContext(tableBill.bill_id);
+
+      // ✅ UPDATE TABLE TO AVAILABLE IN DB
+      const { error } = await supabase
+        .from('Table')
+        .update({
+          table_status: 'Available',
+          occupied_by: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('table_id', billTable.id);
+
+      if (error) throw error;
+
+      await loadBills();
+      changeTableStatus(billTable.id, 'available');
+      
+      // ✅ SEND PAYMENT NOTIFICATION (NEW - NON-BLOCKING)
+      try {
+        await sendPaymentReadyNotification(tableBill.bill_id, billDetails.total, billTable.number);
+        console.log('✅ Payment notification sent');
+      } catch (notifError) {
+        console.warn('⚠️ Notification failed (non-critical):', notifError);
       }
-    );
+      
+      if (loadingToast) {
+        toast.dismiss(loadingToast);
+      }
+      
+      toast.success(
+        `✅ Payment Successful!\n💰 Amount: ₹${billDetails.total.toFixed(2)}\n🟢 Table #${billTable.number} available!`,
+        {
+          position: 'top-center',
+          autoClose: 3000,
+        }
+      );
 
-    // Close modal
-    setShowBillModal(false);
-    setBillTable(null);
+      setShowBillModal(false);
+      setBillTable(null);
 
-  } catch (error) {
-    console.error('❌ Error processing payment:', error);
-    
-    // ✅ DISMISS LOADING TOAST IN CASE OF ERROR
-    if (loadingToast) {
-      toast.dismiss(loadingToast);
+    } catch (error) {
+      console.error('❌ Error:', error);
+      if (loadingToast) {
+        toast.dismiss(loadingToast);
+      }
+      toast.error(`❌ Payment failed: ${error.message}`, {
+        position: 'top-right',
+        autoClose: 3000,
+      });
+    } finally {
+      setBillLoading(false);
+      if (loadingToast) {
+        toast.dismiss(loadingToast);
+      }
     }
-    
-    toast.error(`❌ Payment failed: ${error.message}`, {
-      position: 'top-right',
-      autoClose: 3000,
-    });
-  } finally {
-    setBillLoading(false);
-    
-    // ✅ SAFETY: DISMISS LOADING TOAST IF STILL EXISTS
-    if (loadingToast) {
-      toast.dismiss(loadingToast);
-    }
-  }
-};
-
+  };
 
   const getTableColor = (status) => {
     switch(status) {
@@ -428,12 +456,10 @@ sendPaymentReadyNotification(tableBill.bill_id, billDetails.total, billTable.num
         table.id === tableId ? { ...table, status: newStatus } : table
       )
     );
-    console.log(`✅ Table ${tableId} status changed to: ${newStatus}`);
   };
 
   const filteredTables = tables.filter(table => table.area === selectedArea);
 
-  // ✅ LOADING STATE (LIKE CUSTOMERS.JSX)
   if (billsLoading) {
     return (
       <div className="manage-table-page-fullwidth">
@@ -614,7 +640,7 @@ sendPaymentReadyNotification(tableBill.bill_id, billDetails.total, billTable.num
         </div>
       )}
 
-      {/* Bill Modal - LIKE CUSTOMERS.JSX */}
+      {/* Bill Modal */}
       {showBillModal && billTable && (
         <div className="modal-overlay" onClick={() => setShowBillModal(false)}>
           <div className="modal-content details-modal" onClick={(e) => e.stopPropagation()}>
@@ -772,6 +798,8 @@ sendPaymentReadyNotification(tableBill.bill_id, billDetails.total, billTable.num
           onOrderPlaced={async () => {
             console.log('🔄 Order placed! Refreshing bills...');
             await loadBills();
+            
+     
           }}
         />
       )}

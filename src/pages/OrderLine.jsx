@@ -1,20 +1,29 @@
-// src/pages/OrderLine/OrderLine.jsx - ✅ WITH TOASTIFY
+// src/pages/OrderLine/OrderLine.jsx - ✅ COMPLETE FIXED VERSION
 
 import React, { useMemo, useState } from 'react';
-import { toast } from 'react-toastify';  // ✅ IMPORT TOAST
+import { toast } from 'react-toastify';
 import { ChefHat, Clock, AlertCircle, CheckCircle, Bell } from 'lucide-react';
 import './OrderLine.css';
 import { useOrders } from '../context/OrderContext';
 import { useBill } from '../context/BillContext';
 import { 
   sendOrderReadyNotification,
-  sendNewOrderNotification 
+  showBrowserNotification,
+  requestNotificationPermission
 } from '../api/notificationApi';
+
 
 const OrderLine = () => {
   const { orders, updateItemStatus, calculateElapsedTime } = useOrders();
   const { createBill } = useBill();
   const [loadingItemId, setLoadingItemId] = useState(null);
+
+
+  // ✅ Request notification permission on mount
+  React.useEffect(() => {
+    requestNotificationPermission().catch(console.error);
+  }, []);
+
 
   const getAllItems = useMemo(() => {
     const allItems = [];
@@ -23,13 +32,14 @@ const OrderLine = () => {
         order.items.forEach((item, index) => {
           allItems.push({
             ...item,
-            orderId: order.id,
-            itemId: `${order.id}-${index}`,
+            orderId: order.id || order.order_id,
+            itemId: `${order.id || order.order_id}-${index}`,
             itemIndex: index,
-            tableNumber: order.tableNumber,
+            tableNumber: order.tableNumber || order.table_number,
+            tableId: order.table_id || order.tableId,
             waiter: order.waiterName || order.waiter || 'Not Assigned',
-            customerName: order.customerName || 'Guest',
-            createdAt: order.createdAt,
+            customerName: order.customerName || order.customer_name || 'Guest',
+            createdAt: order.createdAt || order.created_at,
             status: item.status || 'in-kitchen'
           });
         });
@@ -38,47 +48,166 @@ const OrderLine = () => {
     return allItems;
   }, [orders]);
 
+
   const getItemsByStatusLocal = (status) => {
     return getAllItems.filter(item => item.status === status);
   };
+
 
   const getStatusCount = (status) => {
     return getItemsByStatusLocal(status).length;
   };
 
-  // ✅ COMPLETE HANDLER WITH AUTO BILL + TOAST
+
   const moveItem = async (orderId, itemIndex, newStatus) => {
     const itemId = `${orderId}-${itemIndex}`;
+    
     try {
       setLoadingItemId(itemId);
       console.log('🔄 Moving:', { orderId, itemIndex, newStatus });
-      
       await updateItemStatus(orderId, itemIndex, newStatus);
-      console.log(' Item status updated');
+      console.log('✅ Item status updated');
 
-      // ✅ SUCCESS TOAST
-      toast.success(` ${newStatus.replace('-', ' ')} `, {
+      toast.success(`✅ ${newStatus.replace('-', ' ')}`, {
         position: 'top-right',
         autoClose: 2000,
       });
 
- // ✅ SEND READY NOTIFICATION WHEN 'READY' STATUS
-if (newStatus === 'ready') {
-  const order = orders.find(o => o.id === orderId || o.order_id === orderId);
-  if (order) {
-    sendOrderReadyNotification(orderId, order.tableNumber);
-  }
-}
+      // ═══ NOTIFICATION - WHEN READY ═══
+      if (newStatus === 'ready') {
+        const order = orders.find(o => (o.id || o.order_id) === orderId);
 
-// ✅ AUTO BILL ON SERVED
-if (newStatus === 'served') {
-  console.log('🧾 Creating bill automatically...');
-  
-  const order = orders.find(o => o.id === orderId || o.order_id === orderId);
+        if (order) {
+          const tableNumber = order.tableNumber || order.table_number;
+          const tableId = order.table_id || order.tableId || tableNumber;
+
+          // ✅ Get current item
+          const currentItem = order.items[itemIndex];
+          
+          if (!currentItem) {
+            console.error('❌ Item not found at index:', itemIndex);
+            return;
+          }
+
+          // ✅ Extract dish name (try all possible keys)
+          const dishName = 
+            currentItem.dish_name || 
+            currentItem.name || 
+            currentItem.Dish?.dish_name || 
+            currentItem.Dish?.name || 
+            `Dish #${currentItem.dish_id || 'Unknown'}`;
+
+          const quantity = parseInt(currentItem.quantity) || 1;
+
+          console.log('🔍 SENDING NOTIFICATION WITH:');
+          console.log('   - Dish Name:', dishName);
+          console.log('   - Quantity:', quantity);
+          console.log('   - Table:', tableNumber);
+
+          // ✅ SEND NOTIFICATION WITH CORRECT PARAMETERS
+          try {
+            await sendOrderReadyNotification(
+              orderId,
+              tableNumber,
+              dishName,    // ✅ Pass dish name
+              quantity,    // ✅ Pass quantity
+              tableId
+            );
+            
+            console.log('✅ Notification sent successfully!');
+
+            // Browser notification
+            if (Notification.permission === 'granted') {
+              showBrowserNotification(
+                '🎉 Item Ready!',
+                `Table ${tableNumber}: ${quantity}x ${dishName} is ready to serve!`,
+                '✅'
+              );
+            }
+
+            toast.success(`🔔 ${quantity}x ${dishName} ready!`, {
+              position: 'bottom-right',
+              autoClose: 2000,
+            });
+
+          } catch (notifError) {
+            console.error('❌ Notification error:', notifError);
+            toast.warning('⚠️ Notification failed', {
+              position: 'bottom-right',
+              autoClose: 2000,
+            });
+          }
+
+          // ==== FULL ORDER CHECK ====
+          const totalItems = order.items.length;
+          const readyItems = order.items.filter(
+            (itm, idx) => (idx === itemIndex ? newStatus : itm.status) === 'ready'
+          ).length;
+
+          if (readyItems === totalItems) {
+            const allItemNames = order.items.map(itm => 
+              itm.dish_name || itm.name || 'Item'
+            ).join(', ');
+            
+            try {
+              await sendOrderReadyNotification(
+                orderId,
+                tableNumber,
+                `Full Order (${allItemNames})`,  // ✅ All dish names
+                totalItems,                       // ✅ Total count
+                tableId
+              );
+
+              if (Notification.permission === 'granted') {
+                showBrowserNotification(
+                  '🎉 Full Order Ready!',
+                  `Table ${tableNumber}: All items ready!\n${allItemNames}`,
+                  '✅'
+                );
+              }
+
+              toast.info(`🟢 Full order ready!`, {
+                position: 'bottom-right',
+                autoClose: 3000,
+              });
+            } catch (err) {
+              console.error('❌ Full order notification error:', err);
+            }
+          }
+        }
+      }
+
+      // ═══ NOTIFICATION - WHEN WAIT ═══
+      if (newStatus === 'wait') {
+        const order = orders.find(o => (o.id || o.order_id) === orderId);
+        if (order && Notification.permission === 'granted') {
+          const currentItem = order.items[itemIndex];
+          const dishName = 
+            currentItem?.dish_name || 
+            currentItem?.name || 
+            'Item';
+          const tableNumber = order.tableNumber || order.table_number;
+          
+          try {
+            showBrowserNotification(
+              '⏰ Item Waiting',
+              `Table ${tableNumber}: ${dishName} is waiting`,
+              '⏰'
+            );
+          } catch (err) {
+            console.error('⚠️ Wait notification error:', err);
+          }
+        }
+      }
+
+      // ═══ AUTO BILL - WHEN SERVED ═══
+      if (newStatus === 'served') {
+        console.log('🧾 Creating bill automatically...');
+        const order = orders.find(o => (o.id || o.order_id) === orderId);
         
         if (order && order.items && order.items.length > 0) {
           const billAmount = order.items.reduce((sum, item) => {
-            return sum + (parseFloat(item.price) * parseInt(item.quantity));
+            return sum + (parseFloat(item.price || 0) * parseInt(item.quantity || 1));
           }, 0);
           
           const tax = billAmount * 0.18;
@@ -97,31 +226,38 @@ if (newStatus === 'served') {
             };
             
             const newBill = await createBill(billData);
-            console.log('✅ Bill created successfully:', newBill.bill_id);
+            console.log('✅ Bill created:', newBill.bill_id);
 
-            // ✅ SUCCESS TOAST
             toast.success(`🧾 Bill #${newBill.bill_id} created!`, {
               position: 'bottom-right',
               autoClose: 3000,
             });
+
+            const tableNumber = order.tableNumber || order.table_number;
+            if (Notification.permission === 'granted') {
+              try {
+                showBrowserNotification(
+                  '✅ Order Served!',
+                  `Table ${tableNumber}: Bill #${newBill.bill_id} created`,
+                  '✅'
+                );
+              } catch (err) {
+                console.error('⚠️ Served notification error:', err);
+              }
+            }
             
           } catch (billError) {
             console.error('⚠️ Bill creation error:', billError);
-            
-            // ✅ WARNING TOAST
-            toast.warning('⚠️ Bill creation error.', {
+            toast.warning('⚠️ Bill creation error. Order still served.', {
               position: 'bottom-right',
               autoClose: 3000,
             });
           }
         }
       }
-      
     } catch (error) {
       console.error('❌ Error moving item:', error);
-      
-      // ✅ ERROR TOAST
-      toast.error('❌ Error moving item:', {
+      toast.error(`❌ ${error.message || 'Error moving item'}`, {
         position: 'top-right',
         autoClose: 3000,
       });
@@ -129,6 +265,7 @@ if (newStatus === 'served') {
       setLoadingItemId(null);
     }
   };
+
 
   return (
     <div className="orderline-page">
@@ -150,7 +287,6 @@ if (newStatus === 'served') {
 
       {/* Kanban Board - 4 Columns */}
       <div className="kanban-board">
-        
         {/* Column 1: In Kitchen */}
         <div className="kanban-column in-kitchen">
           <div className="column-header">
@@ -276,7 +412,7 @@ if (newStatus === 'served') {
   );
 };
 
-// ✅ Individual Item Card Component
+
 const ItemCard = ({ 
   item, 
   onMove, 
@@ -292,7 +428,7 @@ const ItemCard = ({
         <div className="item-card-top">
           <span className="table-badge-small">Table {item.tableNumber}</span>
           <span className="item-time">
-            {item.createdAt ? calculateElapsedTime(item.createdAt) : ''}
+            {item.createdAt ? calculateElapsedTime(item.createdAt) : '...'}
           </span>
         </div>
       </div>
@@ -338,5 +474,6 @@ const ItemCard = ({
     </div>
   );
 };
+
 
 export default OrderLine;

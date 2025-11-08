@@ -1,9 +1,16 @@
-// src/components/Header.jsx - ✅ WITH MARK ALL READ + CLEAR ALL WORKING
+// src/components/Header.jsx - ✅ FINAL VERSION WITH NOTIFICATIONS + SOUND
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getNotifications, markAllAsRead, deleteOldNotifications } from '../api/notificationApi';
+import { 
+  getNotifications, 
+  markAllAsRead, 
+  deleteOldNotifications,
+  markNotificationAsRead,
+  requestNotificationPermission,
+  showBrowserNotification
+} from '../api/notificationApi';
 import { toast } from 'react-toastify';
 import { 
   Search, 
@@ -18,11 +25,9 @@ import {
   Users,
   CreditCard,
   Calendar,
-  AlertCircle,
   Check
 } from 'lucide-react';
 import './Header.css';
-
 
 const Header = () => {
   const navigate = useNavigate();
@@ -30,91 +35,122 @@ const Header = () => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [lastNotificationId, setLastNotificationId] = useState(null);
 
+  // ✅ REQUEST NOTIFICATION PERMISSION ON MOUNT
+  useEffect(() => {
+    const setupNotifications = async () => {
+      const granted = await requestNotificationPermission();
+      if (granted) {
+        console.log('✅ Browser notifications enabled');
+      } else {
+        console.warn('⚠️ Browser notifications denied');
+      }
+    };
+    
+    setupNotifications();
+  }, []);
 
-  // ✅ LOAD NOTIFICATIONS WITH AUTO-REFRESH
+  // ✅ LOAD NOTIFICATIONS WITH AUTO-REFRESH + SOUND
   useEffect(() => {
     const loadNotifications = async () => {
       try {
         const notif = await getNotifications();
-        setNotifications(notif);
+        
+        // ✅ Check for new notifications and play sound
+        if (notif && notif.length > 0) {
+          const latestNotif = notif[0];
+          
+          // If this is a new notification (different ID than last one)
+          if (lastNotificationId && latestNotif.id !== lastNotificationId) {
+            console.log('🔔 New notification detected:', latestNotif.message);
+            
+            // Show browser notification
+            showBrowserNotification(
+              'Tasty Station',
+              latestNotif.message,
+              getNotificationIcon(latestNotif.type)
+            );
+          }
+          
+          setLastNotificationId(latestNotif.id);
+        }
+        
+        setNotifications(notif || []);
       } catch (error) {
+        console.error('Error loading notifications:', error);
         setNotifications([]);
       }
     };
 
     loadNotifications();
-    const interval = setInterval(loadNotifications, 2000);
+    const interval = setInterval(loadNotifications, 3000); // Check every 3 seconds
     return () => clearInterval(interval);
-  }, []);
+  }, [lastNotificationId]);
 
+  // ✅ GET NOTIFICATION ICON EMOJI
+  const getNotificationIcon = (type) => {
+    const icons = {
+      'new-order': '🛒',
+      'order-ready': '✅',
+      'table-occupied': '🪑',
+      'payment-ready': '💳',
+      'reservation': '📅'
+    };
+    return icons[type] || '🔔';
+  };
 
-  // ✅ Filter notifications by visibleTo field
+  // ✅ FILTER NOTIFICATIONS BY ROLE
   const getFilteredNotifications = () => {
     if (!currentUser) return [];
     
-    const userRole = currentUser.role.toLowerCase();
+    const userRole = currentUser.role?.toLowerCase();
     
     if (userRole === 'customer') {
       return [];
     }
     
+    // Filter by target_role
     return notifications.filter(notification => {
-      if (notification.visibleTo && Array.isArray(notification.visibleTo)) {
-        return notification.visibleTo.includes(userRole);
+      // If no target_role specified, show to all staff
+      if (!notification.target_role) {
+        return userRole !== 'customer';
       }
-      return userRole !== 'customer';
+      
+      // Show to specific role
+      return notification.target_role.toLowerCase() === userRole;
     });
   };
 
-
-  // Get unread count
+  // ✅ GET UNREAD COUNT
   const getUnreadCount = () => {
     const filtered = getFilteredNotifications();
     return filtered.filter(n => !n.read).length;
   };
 
-
-  // ✅ ADD NOTIFICATION GLOBALLY
-  useEffect(() => {
-    window.addNotification = (type, message, orderData = {}) => {
-      const newNotif = {
-        id: `NOTIF-${Date.now()}`,
-        type,
-        message,
-        timestamp: new Date().toISOString(),
-        read: false,
-        visibleTo: ['owner', 'chef', 'waiter'],
-        ...orderData
-      };
-      setNotifications(prev => [newNotif, ...prev]);
-    };
-  }, []);
-
-
-  // ✅ MARK AS READ
-  const markAsRead = (id) => {
-    const updated = notifications.map(n => 
-      n.id === id ? { ...n, read: true } : n
-    );
-    setNotifications(updated);
-    localStorage.setItem('simpleNotifications', JSON.stringify(updated));
-  };
-
-
-  // ✅ MARK ALL AS READ - UPDATED
-  const handleMarkAllRead = async () => {
+  // ✅ MARK SINGLE AS READ
+  const markAsRead = async (id) => {
     try {
-      // Call Supabase function
-      await markAllAsRead();
+      await markNotificationAsRead(id);
       
-      // Update local state
-      const filteredIds = getFilteredNotifications().map(n => n.id);
-      const updated = notifications.map(n =>
-        filteredIds.includes(n.id) ? { ...n, read: true } : n
+      const updated = notifications.map(n => 
+        n.id === id ? { ...n, read: true } : n
       );
       setNotifications(updated);
-      localStorage.setItem('simpleNotifications', JSON.stringify(updated));
+      
+      console.log('✅ Marked as read:', id);
+    } catch (error) {
+      console.error('Error marking as read:', error);
+    }
+  };
+
+  // ✅ MARK ALL AS READ
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllAsRead();
+      
+      const updated = notifications.map(n => ({ ...n, read: true }));
+      setNotifications(updated);
       
       toast.success('✅ All marked as read!', {
         position: 'bottom-right',
@@ -129,19 +165,12 @@ const Header = () => {
     }
   };
 
-
-  // ✅ CLEAR ALL - UPDATED
+  // ✅ CLEAR ALL
   const clearAll = async () => {
     try {
-      // Call Supabase function to delete old notifications
       await deleteOldNotifications(0); // Delete all
       
-      // Update local state
-      const filteredIds = getFilteredNotifications().map(n => n.id);
-      const updated = notifications.filter(n => !filteredIds.includes(n.id));
-      setNotifications(updated);
-      localStorage.setItem('simpleNotifications', JSON.stringify(updated));
-      
+      setNotifications([]);
       setShowNotifications(false);
       
       toast.success('✅ All notifications cleared!', {
@@ -157,18 +186,38 @@ const Header = () => {
     }
   };
 
-
-  // ✅ GET TIME AGO
-  const getTimeAgo = (timestamp) => {
+// ✅ FIXED GET TIME AGO
+const getTimeAgo = (timestamp) => {
+  if (!timestamp) return 'Just now';
+  
+  try {
     const now = new Date();
     const time = new Date(timestamp);
+    
+    // Check if date is valid
+    if (isNaN(time.getTime())) {
+      console.warn('Invalid timestamp:', timestamp);
+      return 'Just now';
+    }
+    
     const diff = Math.floor((now - time) / 1000);
     
     if (diff < 60) return 'Just now';
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return time.toLocaleDateString();
-  };
+    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+    
+    return time.toLocaleDateString('en-IN', { 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch (error) {
+    console.error('Error parsing time:', error);
+    return 'Just now';
+  }
+};
 
 
   // ✅ GET ICON BY TYPE
@@ -189,7 +238,6 @@ const Header = () => {
     }
   };
 
-
   // ✅ GET BACKGROUND COLOR BY TYPE
   const getNotificationColor = (type) => {
     switch(type) {
@@ -208,8 +256,7 @@ const Header = () => {
     }
   };
 
-
-  // Handle logout
+  // ✅ HANDLE LOGOUT
   const handleLogout = () => {
     setShowProfileMenu(false);
     if (window.confirm('Are you sure you want to logout?')) {
@@ -218,13 +265,11 @@ const Header = () => {
     }
   };
 
-
   // ✅ GET USER ICON
   const getUserIcon = () => {
     if (!currentUser) return '👤';
     return currentUser.icon || currentUser.avatar || '👤';
   };
-
 
   // ✅ GET ROLE COLOR
   const getRoleColor = () => {
@@ -232,14 +277,11 @@ const Header = () => {
     return currentUser.color || '#14B8A6';
   };
 
-
   if (!currentUser) return null;
-
 
   const unreadCount = getUnreadCount();
   const filteredNotifications = getFilteredNotifications();
-  const showNotificationButton = currentUser.role.toLowerCase() !== 'customer';
-
+  const showNotificationButton = currentUser.role?.toLowerCase() !== 'customer';
 
   return (
     <>
@@ -259,7 +301,6 @@ const Header = () => {
             <span className="role-icon">{getUserIcon()}</span>
             <span>{currentUser.role}</span>
           </div>
-
 
           {/* ✅ Notification Button */}
           {showNotificationButton && (
@@ -302,7 +343,6 @@ const Header = () => {
               />
             </div>
 
-
             {/* Profile Dropdown */}
             {showProfileMenu && (
               <div className="profile-dropdown">
@@ -323,7 +363,6 @@ const Header = () => {
                   </div>
                 </div>
 
-
                 <div className="dropdown-footer">
                   <button className="logout-btn" onClick={handleLogout}>
                     <LogOut size={16} />
@@ -335,7 +374,6 @@ const Header = () => {
           </div>
         </div>
 
-
         {showProfileMenu && (
           <div 
             className="dropdown-overlay" 
@@ -344,8 +382,7 @@ const Header = () => {
         )}
       </div>
 
-
-      {/* ✅ NOTIFICATION PANEL WITH ICONS */}
+      {/* ✅ NOTIFICATION PANEL */}
       {showNotifications && (
         <>
           <div 
@@ -437,7 +474,6 @@ const Header = () => {
               </div>
             </div>
 
-
             {/* Body */}
             <div style={{
               flex: 1,
@@ -474,7 +510,7 @@ const Header = () => {
                       onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
                       onMouseLeave={(e) => e.currentTarget.style.background = !notification.read ? '#F0F9FF' : 'white'}
                     >
-                      {/* ✅ ICON WITH COLOR */}
+                      {/* Icon */}
                       <div style={{
                         width: '40px',
                         height: '40px',
@@ -488,7 +524,6 @@ const Header = () => {
                       }}>
                         {getIcon(notification.type)}
                       </div>
-
 
                       <div style={{ flex: 1 }}>
                         <p style={{
@@ -507,12 +542,11 @@ const Header = () => {
                           color: '#6B7280'
                         }}>
                           <Clock size={12} />
-                          {getTimeAgo(notification.timestamp)}
+                          {getTimeAgo(notification.created_at)}
                         </span>
                       </div>
 
-
-                      {/* ✅ UNREAD INDICATOR */}
+                      {/* Unread indicator */}
                       {!notification.read && (
                         <div style={{
                           width: '8px',
@@ -529,7 +563,6 @@ const Header = () => {
               )}
             </div>
 
-
             {/* Footer */}
             {filteredNotifications.length > 0 && (
               <div style={{
@@ -538,7 +571,6 @@ const Header = () => {
                 display: 'flex',
                 gap: '10px'
               }}>
-                {/* Mark All Read Button */}
                 <button 
                   onClick={handleMarkAllRead}
                   style={{
@@ -570,7 +602,6 @@ const Header = () => {
                   Mark All
                 </button>
 
-                {/* Clear All Button */}
                 <button 
                   onClick={clearAll}
                   style={{
@@ -609,6 +640,5 @@ const Header = () => {
     </>
   );
 };
-
 
 export default Header;

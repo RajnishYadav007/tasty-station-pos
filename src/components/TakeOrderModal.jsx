@@ -1,4 +1,4 @@
-// src/components/TakeOrderModal/TakeOrderModal.jsx - ✅ WITH ORDER REFRESH
+// src/components/TakeOrderModal/TakeOrderModal.jsx - ✅ WITH table_id PARAMETER
 
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
@@ -10,9 +10,12 @@ import { getDishesWithCategory } from '../api/dishApi';
 import { getCategoriesWithDishCount } from '../api/categoryApi';
 import { addOrder } from '../api/orderApi';
 import { addMultipleOrderDetails } from '../api/orderDetailsApi';
+import { addOrderToBill } from '../api/billSessionApi';
+import { useAuth } from '../context/AuthContext';
 
-// ✅ ADD onOrderPlaced PROP
 const TakeOrderModal = ({ table, onClose, onOrderPlaced }) => {
+  const { currentUser } = useAuth();
+  
   const [dishes, setDishes] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,7 +26,7 @@ const TakeOrderModal = ({ table, onClose, onOrderPlaced }) => {
   const [cart, setCart] = useState([]);
   const [notes, setNotes] = useState({});
   const [customerName, setCustomerName] = useState('');
-  const [waiterName, setWaiterName] = useState('Waiter 1');
+  const [waiterName, setWaiterName] = useState(currentUser?.name || 'Waiter 1');
 
   useEffect(() => {
     loadDishesData();
@@ -32,7 +35,6 @@ const TakeOrderModal = ({ table, onClose, onOrderPlaced }) => {
   const loadDishesData = async () => {
     try {
       setLoading(true);
-
 
       const categoriesData = await getCategoriesWithDishCount();
       
@@ -65,15 +67,16 @@ const TakeOrderModal = ({ table, onClose, onOrderPlaced }) => {
 
       setDishes(transformedDishes);
 
-     
-
     } catch (error) {
-      console.error('Error loading dishes:', error);
+      console.error('❌ Error loading dishes:', error);
       
       toast.error(`Failed to load menu: ${error.message}`, {
         position: 'top-right',
         autoClose: 3000,
       });
+      
+      setDishes([]);
+      setCategories([{ category_id: 0, category_name: 'All Dishes', icon: '🍽️' }]);
     } finally {
       setLoading(false);
     }
@@ -163,7 +166,7 @@ const TakeOrderModal = ({ table, onClose, onOrderPlaced }) => {
     return cart.reduce((total, item) => total + item.price * item.quantity, 0);
   };
 
-  // ✅ UPDATED: CALL onOrderPlaced AFTER SUCCESS
+  // ✅ SUBMIT ORDER WITH table_id PARAMETER
   const handleSubmitOrder = async () => {
     if (cart.length === 0) {
       toast.warning('Please add items to cart', {
@@ -181,24 +184,40 @@ const TakeOrderModal = ({ table, onClose, onOrderPlaced }) => {
       return;
     }
 
+    const tableNumber = table?.table_number || table?.number;
+    const tableId = table?.table_id || table?.id;
+
+    if (!tableNumber || !tableId) {
+      toast.error('Invalid table information', {
+        position: 'top-right',
+        autoClose: 2000,
+      });
+      return;
+    }
+
     try {
       setSubmitting(true);
 
       const loadingToastId = toast.loading('⏳ Sending order to kitchen...', {
         position: 'top-center',
         hideProgressBar: false,
-        closeOnClick: true,
+        closeOnClick: false,
       });
 
-      setTimeout(() => {
-        toast.dismiss(loadingToastId);
-      }, 5000);
+      console.log('\n═══════════════════════════════════════');
+      console.log('📝 SUBMITTING ORDER');
+      console.log('═══════════════════════════════════════');
+      console.log('Table Number:', tableNumber);
+      console.log('Table ID:', tableId); // ✅ Log table_id
+      console.log('Customer:', customerName);
+      console.log('Waiter:', waiterName);
+      console.log('Items:', cart.length);
 
-      // Step 1: Create order
+      // ✅ STEP 1: Create order
       const orderResult = await addOrder({
-        user_id: 1,
-        waiter_id: 1,
-        table_number: table?.number || 1,
+        user_id: currentUser?.user_id || currentUser?.id || 1,
+        waiter_id: currentUser?.user_id || currentUser?.id || 1,
+        table_number: tableNumber,
         waiter_name: waiterName,
         customer_name: customerName,
         order_date: new Date().toISOString(),
@@ -206,7 +225,6 @@ const TakeOrderModal = ({ table, onClose, onOrderPlaced }) => {
       });
 
       let orderId;
-
       if (Array.isArray(orderResult)) {
         if (orderResult.length === 0) {
           throw new Error('API returned empty array');
@@ -222,72 +240,119 @@ const TakeOrderModal = ({ table, onClose, onOrderPlaced }) => {
         throw new Error(`No order_id in response: ${JSON.stringify(orderResult)}`);
       }
 
-      // Step 2: Prepare order details
+      console.log('✅ Order created with ID:', orderId);
+
+      // ✅ STEP 2: Link to bill session
+      try {
+        await addOrderToBill(tableId, orderId);
+        console.log('✅ Order linked to bill session');
+      } catch (billError) {
+        console.warn('⚠️ Bill linking warning (continuing):', billError.message);
+      }
+
+      // ✅ STEP 3: Add order details
       const orderDetails = cart.map(item => ({
         order_id: orderId,
         dish_id: item.dish_id,
         quantity: item.quantity,
         price: item.price,
         discount: 0,
-        status: 'in-kitchen'
+        status: 'in-kitchen',
+        notes: notes[item.id] || ''
       }));
 
-      // Step 3: Add order items
-      const detailsResult = await addMultipleOrderDetails(orderDetails);
+      await addMultipleOrderDetails(orderDetails);
+      console.log('✅ Order details added');
 
+      // ✅ STEP 4: Send notification to chef WITH table_id
+      console.log('\n🔔 SENDING CHEF NOTIFICATION...');
+      console.log('─────────────────────────────────────');
+      
+      try {
+        const notificationResult = await sendNewOrderNotification(
+          orderId, 
+          tableNumber, 
+          cart.length,
+          tableId  // ✅ CRITICAL: Pass table_id
+        );
+        
+        console.log('✅ Chef notification result:', notificationResult);
+        
+        if (notificationResult?.success) {
+          console.log('✅ Chef notification sent successfully!');
+          toast.info('🔔 Chef notified!', {
+            position: 'bottom-left',
+            autoClose: 2000,
+          });
+        } else {
+          console.warn('⚠️ Notification returned success=false:', notificationResult);
+        }
+        
+      } catch (notifError) {
+        console.error('❌ CHEF NOTIFICATION ERROR:');
+        console.error('  Message:', notifError.message);
+        console.error('  Stack:', notifError.stack);
+        
+        toast.warning('⚠️ Could not notify chef (order still created)', {
+          position: 'bottom-right',
+          autoClose: 3000,
+        });
+      }
+      
+      console.log('─────────────────────────────────────\n');
+
+      // ✅ Calculate totals
       const subtotal = calculateTotal();
       const tax = subtotal * 0.18;
       const total = subtotal + tax;
 
       toast.dismiss(loadingToastId);
 
+      // ✅ Success toast
       toast.success(
-        `🎉 Order #${orderId} Successfully sent!\n📍 Table: #${table?.number || 1}\n${cart.length} items\n💰 Total: ₹${total.toFixed(2)}`,
+        `🎉 Order #${orderId} sent to kitchen!\n📍 Table #${tableNumber}\n${cart.length} items • ₹${total.toFixed(2)}`,
         {
           position: 'top-right',
           autoClose: 3000,
-          hideProgressBar: false,
         }
       );
 
-      console.log(
-        `Order #${orderId} Successfully Sent to Kitchen!\n\n` +
-        `Customer: ${customerName}\n` +
-        `Waiter: ${waiterName}\n` +
-        `Table: #${table?.number || 1}\n` +
-        `Items: ${cart.length}\n` +
-        `Subtotal: ₹${subtotal.toFixed(2)}\n` +
-        `Tax (18%): ₹${tax.toFixed(2)}\n` +
-        `Total: ₹${total.toFixed(2)}`
-      );
+      console.log('✅ ORDER COMPLETE:', {
+        orderId,
+        tableNumber,
+        tableId,
+        customer: customerName,
+        items: cart.length,
+        total: `₹${total.toFixed(2)}`
+      });
+      console.log('═══════════════════════════════════════\n');
 
-     // 🔔 SEND NEW ORDER NOTIFICATION
-sendNewOrderNotification(orderId, table?.number || 1, cart.length);
+      // ✅ STEP 5: Refresh parent
+      if (onOrderPlaced) {
+        try {
+          await onOrderPlaced();
+        } catch (callbackError) {
+          console.error('⚠️ Callback error:', callbackError);
+        }
+      }
 
-// ✅ CALL REFRESH CALLBACK
-if (onOrderPlaced) {
-  console.log('🔄 Calling onOrderPlaced callback...');
-  await onOrderPlaced();
-}
-
-      // Reset form
+      // ✅ Reset form
       setCart([]);
       setNotes({});
       setCustomerName('');
-      setWaiterName('Waiter 1');
+      setWaiterName(currentUser?.name || 'Waiter 1');
 
-      // Close modal
+      // ✅ Close modal
       onClose();
 
     } catch (error) {
-      console.error('Error submitting order:', error);
+      console.error('❌ ORDER SUBMISSION ERROR:', error);
 
       toast.error(
-        `❌ Failed to Submit Order\n${error.message}`,
+        `❌ Failed to submit order: ${error.message}`,
         {
           position: 'top-right',
           autoClose: 4000,
-          hideProgressBar: false,
         }
       );
     } finally {
@@ -295,12 +360,26 @@ if (onOrderPlaced) {
     }
   };
 
+  // Loading state (unchanged)
   if (loading) {
     return (
       <div className="modal-overlay" onClick={onClose}>
         <div className="take-order-modal" onClick={(e) => e.stopPropagation()}>
-          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
-            Loading menu...
+          <div style={{ 
+            textAlign: 'center', 
+            padding: '60px 40px', 
+            color: '#666' 
+          }}>
+            <div className="spinner" style={{ 
+              width: '40px', 
+              height: '40px', 
+              border: '4px solid #f3f3f3',
+              borderTop: '4px solid #667eea',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+              margin: '0 auto 20px'
+            }}></div>
+            <p>Loading menu...</p>
           </div>
         </div>
       </div>
@@ -310,13 +389,13 @@ if (onOrderPlaced) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="take-order-modal" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
+        {/* Rest of JSX remains same - Header, Menu, Cart sections */}
         <div className="modal-header">
           <div>
-            <h2>📋 Take Order - Table #{table?.number || '?'}</h2>
+            <h2>📋 Take Order - Table #{table?.table_number || table?.number || '?'}</h2>
             <p>Select items from menu</p>
           </div>
-          <button className="modal-close-btn" onClick={onClose}>
+          <button className="modal-close-btn" onClick={onClose} disabled={submitting}>
             <X size={24} />
           </button>
         </div>
@@ -324,15 +403,15 @@ if (onOrderPlaced) {
         <div className="modal-body-horizontal">
           {/* Left: Menu */}
           <div className="menu-section">
-            {/* Customer & Waiter Input */}
             <div className="customer-input-section">
               <input
                 type="text"
-                placeholder="👤 Customer Name"
+                placeholder="👤 Customer Name *"
                 className="customer-name-input"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 disabled={submitting}
+                required
               />
               <input
                 type="text"
@@ -344,7 +423,6 @@ if (onOrderPlaced) {
               />
             </div>
 
-            {/* Search */}
             <div className="search-box">
               <Search size={18} />
               <input
@@ -356,7 +434,6 @@ if (onOrderPlaced) {
               />
             </div>
 
-            {/* Category Tabs */}
             <div className="category-tabs">
               {categories.map(category => (
                 <button
@@ -373,7 +450,6 @@ if (onOrderPlaced) {
               ))}
             </div>
 
-            {/* Dishes Grid */}
             <div className="dishes-grid-modal">
               {filteredDishes.length === 0 ? (
                 <div className="no-dishes-modal">

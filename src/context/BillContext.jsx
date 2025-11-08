@@ -35,23 +35,46 @@ export const BillProvider = ({ children }) => {
 
   // ✅ 1. LOAD ALL BILLS
   const loadBills = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  try {
+    setLoading(true);
+    setError(null);
 
-      const billsData = await getBills();
-      const detailsMap = {};
+    const billsData = await getBills();
+    const detailsMap = {};
 
-      await Promise.all(
-        billsData.map(async (bill) => {
-          try {
-            const details = await getOrderDetailsByOrderId(bill.order_id);
-            detailsMap[bill.order_id] = details;
-          } catch (err) {
-            console.error(`❌ Error loading details for order ${bill.order_id}:`, err);
-          }
-        })
-      );
+    // ✅ FETCH DIRECTLY FROM SUPABASE WITH DISH JOIN
+    const { data: orderDetailsData, error: odError } = await supabase
+      .from('Order_Details')
+      .select(`
+        *,
+        Dish (
+          dish_id,
+          dish_name
+        )
+      `);
+
+    if (odError) {
+      console.error('❌ Error fetching order details:', odError);
+      throw odError;
+    }
+
+    // ✅ Map order details with dish names
+    if (orderDetailsData) {
+      orderDetailsData.forEach(od => {
+        if (!detailsMap[od.order_id]) {
+          detailsMap[od.order_id] = [];
+        }
+        detailsMap[od.order_id].push({
+          ...od,
+          dish_name: od.Dish?.dish_name || `Dish #${od.dish_id}` // 👈 ADD DISH NAME
+        });
+      });
+    }
+
+    setBills(billsData);
+    setOrderDetails(detailsMap);
+    console.log('✅ Bills loaded with dish names:', billsData.length);
+
 
       setBills(billsData);
       setOrderDetails(detailsMap);
