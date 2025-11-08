@@ -40,6 +40,8 @@ import { getTotalRevenue, getTodaysRevenue, getBillStatistics, getLastMonthReven
 import { getDishes } from '../api/dishApi';
 import { getUsers } from '../api/userApi';
 import { getOrderDetailsByOrderId } from '../api/orderDetailsApi';
+import { supabase } from '../api/supabaseClient';
+
 
 import './Dashboard.css';
 
@@ -100,65 +102,68 @@ const Dashboard = () => {
   }, [activeTab]);
 
   const loadDashboardData = async () => {
-    try {
-      setLoading(true);
-      
-      const [
-        ordersData,
-        orderStats,
-        todaysOrdersData,
-        totalRevenue,
-        todayRevenue,
-        usersData,
-        dishesData,
-        lastMonthRevenue  // ✅ ADD
-      ] = await Promise.all([
-        getOrders(),
-        getOrderStatistics(),
-        getTodaysOrders(),
-        getTotalRevenue(),
-        getTodaysRevenue(),
-        getUsers(),
-        getDishes(),
-        getLastMonthRevenue()  // ✅ ADD
-      ]);
+  try {
+    setLoading(true);
+    
+    const [
+      ordersData,
+      orderStats,
+      todaysOrdersData,
+      totalRevenue,
+      todayRevenue,
+      usersData,
+      dishesData,
+      lastMonthRevenue
+    ] = await Promise.all([
+      getOrders(),
+      getOrderStatistics(),
+      getTodaysOrders(),
+      getTotalRevenue(),
+      getTodaysRevenue(),
+      getUsers(),
+      getDishes(),
+      getLastMonthRevenue()
+    ]);
 
-      // ✅ CALCULATE PERCENTAGE CHANGE
-      let changePercentage = '+0%';
-      let isTrendingUp = true;
-      
-      if (lastMonthRevenue > 0) {
-        const change = ((totalRevenue - lastMonthRevenue) / lastMonthRevenue) * 100;
-        changePercentage = `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
-        isTrendingUp = change >= 0;
-      } else if (totalRevenue > 0) {
-        changePercentage = '+100%';
-        isTrendingUp = true;
-      }
-
-      const calculatedStats = {
-        totalRevenue: totalRevenue || 0,
-        todayRevenue: todayRevenue || 0,
-        totalOrders: ordersData.length,
-        todayOrders: todaysOrdersData.length,
-        uniqueCustomers: usersData.length,
-        activeNow: todaysOrdersData.filter(o => o.status === 'in-kitchen').length,
-        pendingActions: orderStats.pending || 0,
-        revenueChange: isTrendingUp,           // ✅ ADD
-        revenuePercentage: changePercentage    // ✅ ADD
-      };
-
-      setStats(calculatedStats);
-      await processRecentOrders(ordersData.slice(0, 5));
-      await calculateTopItems(ordersData);
-
-    } catch (error) {
-      console.error('Error loading dashboard data:', error);
-      toast.error('❌ Error loading dashboard data');
-    } finally {
-      setLoading(false);
+    // Calculate percentage change
+    let changePercentage = '+0%';
+    let isTrendingUp = true;
+    
+    if (lastMonthRevenue > 0) {
+      const change = ((totalRevenue - lastMonthRevenue) / lastMonthRevenue) * 100;
+      changePercentage = `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
+      isTrendingUp = change >= 0;
+    } else if (totalRevenue > 0) {
+      changePercentage = '+100%';
+      isTrendingUp = true;
     }
-  };
+
+    const calculatedStats = {
+      totalRevenue: totalRevenue || 0,
+      todayRevenue: todayRevenue || 0,
+      totalOrders: ordersData.length,
+      todayOrders: todaysOrdersData.length,
+      uniqueCustomers: usersData.length,
+      activeNow: todaysOrdersData.filter(o => o.status === 'in-kitchen').length,
+      pendingActions: orderStats.pending || 0,
+      revenueChange: isTrendingUp,
+      revenuePercentage: changePercentage
+    };
+
+    setStats(calculatedStats);
+    await processRecentOrders(ordersData.slice(0, 5));
+    
+    // ✅ THIS IS THE MOST IMPORTANT LINE - ADD IT!
+    await calculateTopItems();  // 👈👈👈 YEH LINE ADD KARO!
+
+  } catch (error) {
+    console.error('Error loading dashboard data:', error);
+    toast.error('❌ Error loading dashboard data');
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const loadStaffData = async () => {
     try {
@@ -232,50 +237,74 @@ const Dashboard = () => {
     }
   };
 
-  const calculateTopItems = async (orders) => {
-    try {
-      const itemCounts = {};
-      
-      await Promise.all(
-        orders.map(async (order) => {
-          try {
-            const details = await getOrderDetailsByOrderId(order.order_id);
-            
-            details.forEach(item => {
-              const dishId = item.dish_id;
-              if (!itemCounts[dishId]) {
-                itemCounts[dishId] = {
-                  id: dishId,
-                  name: `Dish #${dishId}`,
-                  count: 0,
-                  revenue: 0
-                };
-              }
-              itemCounts[dishId].count += parseInt(item.quantity);
-              itemCounts[dishId].revenue += parseFloat(item.price) * parseInt(item.quantity);
-            });
-          } catch (err) {
-            console.error('Error fetching order details:', err);
-          }
-        })
-      );
+// ✅ PASTE THIS EXACT CODE
+const calculateTopItems = async () => {
+  try {
+    console.log('📊 STARTING TO CALCULATE TOP ITEMS...');
+    
+    // ✅ USE Order_Details TABLE (not OrderItem)
+    const { data: orderDetails, error } = await supabase
+      .from('Order_Details')  // 👈 CHANGED TABLE NAME!
+      .select(`
+        dish_id,
+        quantity,
+        price,
+        Dish (
+          dish_id,
+          dish_name
+        )
+      `);
 
-      const topItemsArray = Object.values(itemCounts)
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 4)
-        .map(item => ({
-          id: item.id,
-          name: item.name,
-          orders: item.count,
-          revenue: Math.round(item.revenue),
-          trend: 'up'
-        }));
-
-      setTopItems(topItemsArray);
-    } catch (error) {
-      console.error('Error calculating top items:', error);
+    if (error) {
+      console.error('❌ Supabase Error:', error);
+      setTopItems([]);
+      return;
     }
-  };
+
+    if (!orderDetails || orderDetails.length === 0) {
+      console.log('⚠️ NO ORDER DETAILS FOUND');
+      setTopItems([]);
+      return;
+    }
+
+    const dishStats = {};
+    
+    orderDetails.forEach(item => {
+      const dishId = item.dish_id;
+      const dishName = item.Dish?.dish_name || `Dish #${dishId}`;  // 👈 dish_name not name
+      
+      if (!dishStats[dishId]) {
+        dishStats[dishId] = {
+          id: dishId,
+          name: dishName,
+          orders: 0,
+          revenue: 0
+        };
+      }
+      
+      dishStats[dishId].orders += parseInt(item.quantity) || 1;
+      dishStats[dishId].revenue += (parseFloat(item.price) || 0) * (parseInt(item.quantity) || 1);
+    });
+
+    const topItemsArray = Object.values(dishStats)
+      .sort((a, b) => b.orders - a.orders)
+      .slice(0, 4)
+      .map(item => ({
+        ...item,
+        revenue: Math.round(item.revenue),
+        trend: 'up'
+      }));
+
+    console.log('✅ TOP ITEMS FINAL:', topItemsArray);
+    setTopItems(topItemsArray);
+    
+  } catch (error) {
+    console.error('❌ CRITICAL ERROR:', error);
+    setTopItems([]);
+  }
+};
+
+
 
   const handleCreateStaff = async (e) => {
     e.preventDefault();

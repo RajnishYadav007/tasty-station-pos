@@ -1,4 +1,4 @@
-// src/api/billApi.js - ✅ FULLY CORRECTED FOR SUPABASE
+// src/api/billApi.js - ✅ WITH TABLE STATUS UPDATE ON MARK AS PAID
 
 import { supabase } from './supabaseClient';
 
@@ -135,41 +135,82 @@ export async function addBill(billData) {
   return data[0];
 }
 
-// Update bill
+// ✅ Update bill - WITH TABLE STATUS UPDATE
 export async function updateBill(billId, updatedData) {
-  const { data, error } = await supabase
-    .from('Bill')
-    .update(updatedData)
-    .eq('bill_id', billId)
-    .select();
-  
-  if (error) {
+  try {
+    console.log(`📝 Updating bill #${billId}:`, updatedData);
+
+    // 1. Update bill
+    const { data: bill, error: billError } = await supabase
+      .from('Bill')
+      .update(updatedData)
+      .eq('bill_id', billId)
+      .select()
+      .single();
+    
+    if (billError) throw billError;
+
+    // 2. ✅ IF PAYMENT STATUS IS PAID, CLEAR TABLE
+    if (updatedData.payment_status === 'Paid') {
+      console.log('💰 Bill marked as paid! Clearing table...');
+
+      // Get order_id from bill
+      const orderId = bill.order_id;
+      
+      if (orderId) {
+        // Get order to find table_number
+        const { data: order, error: orderError } = await supabase
+          .from('Order')
+          .select('table_number')
+          .eq('order_id', orderId)
+          .single();
+
+        if (!orderError && order?.table_number) {
+          console.log(`🪑 Clearing Table ${order.table_number}...`);
+          
+          // Update table status to available
+          const { error: tableError } = await supabase
+            .from('Table')
+            .update({ 
+              status: 'available',
+              current_order_id: null,
+              updated_at: new Date().toISOString()
+            })
+            .eq('table_number', order.table_number);
+
+          if (tableError) {
+            console.error('❌ Error updating table:', tableError);
+          } else {
+            console.log(`✅ Table ${order.table_number} is now available!`);
+            
+            // ✅ TRIGGER REAL-TIME UPDATE EVENT
+            window.dispatchEvent(new CustomEvent('tableStatusChanged', {
+              detail: { tableNumber: order.table_number, status: 'available' }
+            }));
+          }
+        }
+      }
+    }
+
+    console.log('✅ Bill updated successfully!');
+    return bill;
+  } catch (error) {
     console.error('❌ Error updating bill:', error);
     throw error;
   }
-  return data[0];
 }
 
-// Update payment status
+// ✅ Update payment status - UPDATED TO USE MAIN updateBill
 export async function updatePaymentStatus(billId, status) {
-  const { data, error } = await supabase
-    .from('Bill')
-    .update({ 
-      payment_status: status,
-      created_at: new Date().toISOString()
-    })
-    .eq('bill_id', billId)
-    .select();
-  
-  if (error) {
-    console.error('❌ Error updating payment status:', error);
-    throw error;
-  }
-  return data[0];
+  return await updateBill(billId, { 
+    payment_status: status,
+    created_at: new Date().toISOString()
+  });
 }
 
-// Mark bill as paid
+// ✅ Mark bill as paid - WITH TABLE CLEARING
 export async function markBillAsPaid(billId) {
+  console.log(`💰 Marking bill #${billId} as paid...`);
   return await updatePaymentStatus(billId, 'Paid');
 }
 
@@ -287,8 +328,6 @@ export async function getBillStatistics() {
   }
 }
 
-// src/api/billApi.js - ADD THESE FUNCTIONS
-
 // ✅ Get last month revenue
 export async function getLastMonthRevenue() {
   try {
@@ -322,7 +361,7 @@ export async function getLastMonthRevenue() {
 export async function getRevenuePercentageChange() {
   try {
     const [thisMonth, lastMonth] = await Promise.all([
-      getTodaysRevenue(),  // Or use current month function
+      getTodaysRevenue(),
       getLastMonthRevenue()
     ]);
 
@@ -334,7 +373,6 @@ export async function getRevenuePercentageChange() {
     return 0;
   }
 }
-
 
 // ✅ Create alias for Customers.jsx compatibility
 export const createBill = addBill;
