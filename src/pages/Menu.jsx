@@ -100,7 +100,7 @@ const Menu = () => {
   // ✅ Filter dishes by category and search
   useEffect(() => {
     filterDishes();
-  }, [selectedCategory, searchQuery, dishes,filteredDishes]);
+  }, [selectedCategory, searchQuery, dishes,filterDishes]);
 
   const filterDishes = async () => {
     try {
