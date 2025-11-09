@@ -39,7 +39,7 @@ const Menu = () => {
   // ✅ Load categories and dishes from database
   useEffect(() => {
     loadMenuData();
-  }, []);
+  }, );
 
   const loadMenuData = async () => {
     try {
