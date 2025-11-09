@@ -1,9 +1,7 @@
-// src/context/MenuContext.jsx
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-
-// ✅ Import APIs
-import { getDishes, getCategories as fetchCategories } from '../api/dishApi';
+// Import APIs
+import { getDishes } from '../api/dishApi';
 import { getCategoriesWithDishCount } from '../api/categoryApi';
 
 const MenuContext = createContext();
@@ -23,33 +21,25 @@ export const MenuProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // ✅ Load dishes and categories from database
-  useEffect(() => {
-    loadMenuData();
-    
-    // Auto-sync with database every 30 seconds
-    const interval = setInterval(loadMenuData, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const loadMenuData = async () => {
+  // Wrap loadMenuData in useCallback to stabilize reference
+  const loadMenuData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Fetch dishes and categories from database
+      // Fetch dishes and categories in parallel
       const [dishesData, categoriesData] = await Promise.all([
         getDishes(),
         getCategoriesWithDishCount()
       ]);
 
-      // Add "All Dishes" category
+      // Add "All Dishes" category manually with icon
       const allCategories = [
         {
           category_id: 0,
           category_name: 'All Dishes',
           dish_count: dishesData.length,
-          icon: '🍽️'
+          icon: '🍽️',
         },
         ...categoriesData.map(cat => ({
           ...cat,
@@ -60,7 +50,7 @@ export const MenuProvider = ({ children }) => {
       setDishes(dishesData);
       setCategories(allCategories);
 
-      // ✅ Also save to localStorage as backup
+      // Save to localStorage as fallback
       localStorage.setItem('restaurantDishes', JSON.stringify(dishesData));
       localStorage.setItem('restaurantCategories', JSON.stringify(allCategories));
 
@@ -69,7 +59,7 @@ export const MenuProvider = ({ children }) => {
       console.error('❌ Error loading menu from database:', err);
       setError(err.message);
 
-      // ✅ Fallback to localStorage
+      // Fallback to localStorage data if API fails
       const savedDishes = localStorage.getItem('restaurantDishes');
       const savedCategories = localStorage.getItem('restaurantCategories');
 
@@ -86,9 +76,17 @@ export const MenuProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // Empty dependency array to avoid infinite loop
 
-  // ✅ Get category icon based on name
+  // useEffect to load menu initially and every 30 seconds
+  useEffect(() => {
+    loadMenuData();
+
+    const interval = setInterval(loadMenuData, 30000);
+    return () => clearInterval(interval);
+  }, [loadMenuData]);
+
+  // Get category icon by name
   const getCategoryIcon = (categoryName) => {
     const iconMap = {
       'Breakfast': '🍳',
@@ -108,17 +106,17 @@ export const MenuProvider = ({ children }) => {
     return iconMap[categoryName] || '🍽️';
   };
 
-  // Get dishes by category
+  // Get dishes filtered by category name
   const getDishesByCategory = (categoryName) => {
     if (categoryName === 'All Dishes') return dishes;
-    
+
     const category = categories.find(c => c.category_name === categoryName);
     if (!category) return [];
-    
+
     return dishes.filter(dish => dish.category_id === category.category_id);
   };
 
-  // Get all category names
+  // Get all category names list
   const getCategoryNames = () => {
     return categories.map(cat => cat.category_name);
   };
@@ -128,16 +126,16 @@ export const MenuProvider = ({ children }) => {
     return categories;
   };
 
-  // Search dishes
+  // Search dishes by name (case-insensitive)
   const searchDishes = (searchTerm) => {
     if (!searchTerm) return dishes;
-    
+
     return dishes.filter(dish =>
       dish.dish_name.toLowerCase().includes(searchTerm.toLowerCase())
     );
   };
 
-  // Get dishes by price range
+  // Filter dishes by price range
   const getDishesByPriceRange = (minPrice, maxPrice) => {
     return dishes.filter(dish => {
       const price = parseFloat(dish.price);
@@ -145,16 +143,17 @@ export const MenuProvider = ({ children }) => {
     });
   };
 
-  // Get available dishes
+  // Get dishes which are available
   const getAvailableDishes = () => {
     return dishes.filter(dish => dish.availability_status === true);
   };
 
-  // Manual refresh
+  // Manual refresh to reload menu data
   const refreshMenu = async () => {
     await loadMenuData();
   };
 
+  // Value provided to context consumers
   const value = {
     dishes,
     categories,

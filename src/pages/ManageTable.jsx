@@ -1,7 +1,6 @@
 // src/pages/ManageTable/ManageTable.jsx - ✅ WITH NOTIFICATIONS (WORKING CODE + NOTIFICATIONS)
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { 
   Users, 
@@ -18,23 +17,21 @@ import {
   sendPaymentReadyNotification,
 } from '../api/notificationApi';
 import { useBill } from '../context/BillContext';
-import { usePayment } from '../context/PaymentContext';
 import TakeOrderModal from '../components/TakeOrderModal';
 import './ManageTable.css';
 
 const ManageTable = () => {
-  const navigate = useNavigate();
+
   
   const { 
     bills, 
     orderDetails, 
     loading: billsLoading,
     loadBills,
-    createBill, 
     markBillAsPaid: markBillAsPaidContext 
   } = useBill();
   
-  const { executePayment: processPaymentTransaction } = usePayment();
+
   
   const [selectedArea, setSelectedArea] = useState('Main Dining');
   const [selectedTable, setSelectedTable] = useState(null);

@@ -428,7 +428,7 @@ export const cancelBillSession = async (tableId) => {
   }
 };
 
-export default {
+const billSessionApi = {
   startBillSession,
   getActiveBillSession,
   getOrCreateBillForSession,
@@ -439,3 +439,5 @@ export default {
   getAllOpenBills,
   cancelBillSession
 };
+
+export default billSessionApi;

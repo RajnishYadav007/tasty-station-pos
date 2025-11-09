@@ -11,7 +11,6 @@ import {
   updatePaymentStatus,
   deleteBill 
 } from '../api/billApi';
-import { getOrderDetailsByOrderId } from '../api/orderDetailsApi';
 
 
 const BillContext = createContext();

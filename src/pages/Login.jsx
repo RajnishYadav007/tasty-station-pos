@@ -9,7 +9,7 @@ import './Login.css';
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login, signup, userRoles } = useAuth();
+  const { login, signup } = useAuth();
   
   const [isSignUp, setIsSignUp] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);

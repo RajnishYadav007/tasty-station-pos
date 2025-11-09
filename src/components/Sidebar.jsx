@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   ShoppingCart, 
   Grid3x3, 
-  Utensils, 
   Users, 
   Settings, 
   HelpCircle, 

@@ -28,9 +28,9 @@ const TakeOrderModal = ({ table, onClose, onOrderPlaced }) => {
   const [customerName, setCustomerName] = useState('');
   const [waiterName, setWaiterName] = useState(currentUser?.name || 'Waiter 1');
 
-  useEffect(() => {
+ useEffect(() => {
     loadDishesData();
-  }, []);
+  }, [loadDishesData]);
 
   const loadDishesData = async () => {
     try {

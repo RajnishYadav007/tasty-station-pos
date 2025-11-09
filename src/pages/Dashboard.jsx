@@ -6,11 +6,9 @@ import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 import { 
   TrendingUp, 
-  TrendingDown, 
   DollarSign, 
   ShoppingCart, 
   Users, 
-  Calendar,
   ArrowUpRight,
   ArrowDownRight,
   MoreVertical,
@@ -28,15 +26,9 @@ import {
   Phone
 } from 'lucide-react';
 
-import { 
-  sendTableOccupiedNotification,
-  sendOrderReadyNotification,
-  sendNewOrderNotification,
-  sendPaymentReadyNotification
-} from '../api/notificationApi';
 
 import { getOrders, getOrderStatistics, getTodaysOrders } from '../api/orderApi';
-import { getTotalRevenue, getTodaysRevenue, getBillStatistics, getLastMonthRevenue } from '../api/billApi';
+import { getTotalRevenue, getTodaysRevenue, getLastMonthRevenue } from '../api/billApi';
 import { getDishes } from '../api/dishApi';
 import { getUsers } from '../api/userApi';
 import { getOrderDetailsByOrderId } from '../api/orderDetailsApi';
