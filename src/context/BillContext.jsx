@@ -277,8 +277,7 @@ export const BillProvider = ({ children }) => {
     }
   }, []);
 
-  // ✅ HOOK: Update stats when bills change - USE created_at
-  const { useState: useStateHook } = require('react');
+
   
   // This will be used by Customers.jsx to calculate stats
   // Make sure Customers.jsx calls this hook in useEffect

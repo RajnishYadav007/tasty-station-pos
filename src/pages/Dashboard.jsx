@@ -1,6 +1,6 @@
 // src/pages/Dashboard/Dashboard.jsx - ✅ FULLY CORRECTED & WORKING
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
@@ -93,7 +93,7 @@ const Dashboard = () => {
     }
   }, [activeTab]);
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
   try {
     setLoading(true);
     
@@ -104,7 +104,6 @@ const Dashboard = () => {
       totalRevenue,
       todayRevenue,
       usersData,
-      dishesData,
       lastMonthRevenue
     ] = await Promise.all([
       getOrders(),
@@ -154,10 +153,10 @@ const Dashboard = () => {
   } finally {
     setLoading(false);
   }
-};
+}, []);
 
 
-  const loadStaffData = async () => {
+  const loadStaffData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -175,7 +174,7 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+}, []);
 
   const processRecentOrders = async (orders) => {
     try {

@@ -1,6 +1,6 @@
 // src/components/TakeOrderModal/TakeOrderModal.jsx - ✅ WITH table_id PARAMETER
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-toastify';
 import { X, Plus, Minus, ShoppingCart, Search } from 'lucide-react';
 import './TakeOrderModal.css';
@@ -28,11 +28,8 @@ const TakeOrderModal = ({ table, onClose, onOrderPlaced }) => {
   const [customerName, setCustomerName] = useState('');
   const [waiterName, setWaiterName] = useState(currentUser?.name || 'Waiter 1');
 
- useEffect(() => {
-    loadDishesData();
-  }, [loadDishesData]);
 
-  const loadDishesData = async () => {
+  const loadDishesData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -80,7 +77,11 @@ const TakeOrderModal = ({ table, onClose, onOrderPlaced }) => {
     } finally {
       setLoading(false);
     }
-  };
+}, []);
+
+useEffect(() => {
+  loadDishesData();
+}, [loadDishesData]);
 
   const getCategoryIcon = (categoryName) => {
     const iconMap = {

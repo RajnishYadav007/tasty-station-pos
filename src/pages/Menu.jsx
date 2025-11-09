@@ -36,12 +36,8 @@ const Menu = () => {
     image_url: ''
   });
 
-  // ✅ Load categories and dishes from database
-  useEffect(() => {
-  loadMenuData();
-}, []);  
 
-  const loadMenuData = async () => {
+  const loadMenuData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -75,7 +71,11 @@ const Menu = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+  loadMenuData();
+}, [loadMenuData]);
 
   // ✅ Get category icon based on name
   const getCategoryIcon = (categoryName) => {

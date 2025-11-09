@@ -1,5 +1,4 @@
-// src/pages/Customers/Customers.jsx - 
-import { startBillSession } from '../api/billSessionApi';
+
 
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';  // ✅ IMPORT TOAST
@@ -8,7 +7,6 @@ import {
   Receipt,
   Eye,
   Download,
-  Calendar,
   ShoppingBag,
   X,
   TrendingUp,
