@@ -97,24 +97,23 @@ const Menu = () => {
     return iconMap[categoryName] || '🍽️';
   };
 
-  // ✅ Filter dishes by category and search
-  useEffect(() => {
-    filterDishes();
-  }, [selectedCategory, searchQuery, dishes,filterDishes]);
-
-  const filterDishes = async () => {
+  const filterDishes = useCallback(async () => {
     try {
       let filtered = [];
-
+ 
       // If searching, use search API
       if (searchQuery.trim()) {
         filtered = await searchDishesByName(searchQuery);
-        
+ 
         // Apply category filter if not "All Dishes"
         if (selectedCategory !== 'All Dishes') {
-          const category = categories.find(c => c.category_name === selectedCategory);
+          const category = categories.find(
+            (c) => c.category_name === selectedCategory
+          );
           if (category) {
-            filtered = filtered.filter(d => d.category_id === category.category_id);
+            filtered = filtered.filter(
+              (d) => d.category_id === category.category_id
+            );
           }
         }
       } else {
@@ -122,18 +121,24 @@ const Menu = () => {
         if (selectedCategory === 'All Dishes') {
           filtered = dishes;
         } else {
-          const category = categories.find(c => c.category_name === selectedCategory);
+          const category = categories.find(
+            (c) => c.category_name === selectedCategory
+          );
           if (category) {
             filtered = await getDishesByCategory(category.category_id);
           }
         }
       }
-
+ 
       setFilteredDishes(filtered);
     } catch (error) {
       console.error('Error filtering dishes:', error);
     }
-  };
+  }, [selectedCategory, searchQuery, dishes, categories]); // ✅ dependencies tracked safely
+ 
+  useEffect(() => {
+    filterDishes();
+  }, [filterDishes]);
 
   // Handle category change
   const handleCategoryChange = (categoryName) => {
