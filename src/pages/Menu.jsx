@@ -5,8 +5,8 @@ import { Plus, Search, Grid, List, Filter, Edit2, Trash2 } from 'lucide-react';
 import './Menu.css';
 
 // ✅ Import APIs
-import { getCategories, getCategoriesWithDishCount } from '../api/categoryApi';
-import { getDishes, getDishesWithCategory, getDishesByCategory, searchDishesByName, addDish, updateDish, deleteDish } from '../api/dishApi';
+import { getCategoriesWithDishCount } from '../api/categoryApi';
+import { getDishesWithCategory, getDishesByCategory, searchDishesByName, addDish, updateDish, deleteDish } from '../api/dishApi';
 
 // ✅ IMPORT AUTH CONTEXT - ADD THIS LINE
 import { useAuth } from '../context/AuthContext';
@@ -38,8 +38,8 @@ const Menu = () => {
 
   // ✅ Load categories and dishes from database
   useEffect(() => {
-    loadMenuData();
-  }, );
+  loadMenuData();
+}, []);  
 
   const loadMenuData = async () => {
     try {
