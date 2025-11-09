@@ -1,5 +1,4 @@
-// src/pages/Dashboard/Dashboard.jsx - ✅ FULLY CORRECTED & WORKING
-
+// src/pages/Dashboard/Dashboard.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -26,7 +25,6 @@ import {
   Phone
 } from 'lucide-react';
 
-
 import { getOrders, getOrderStatistics, getTodaysOrders } from '../api/orderApi';
 import { getTotalRevenue, getTodaysRevenue, getLastMonthRevenue } from '../api/billApi';
 import { getDishes } from '../api/dishApi';
@@ -34,18 +32,17 @@ import { getUsers } from '../api/userApi';
 import { getOrderDetailsByOrderId } from '../api/orderDetailsApi';
 import { supabase } from '../api/supabaseClient';
 
-
 import './Dashboard.css';
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { currentUser, isOwner, logout, staffManagement } = useAuth();
-  
+
   const [currentTime, setCurrentTime] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
-  
+
   const [stats, setStats] = useState({
     totalRevenue: 0,
     todayRevenue: 0,
@@ -54,13 +51,13 @@ const Dashboard = () => {
     uniqueCustomers: 0,
     activeNow: 0,
     pendingActions: 0,
-    revenueChange: 0,        // ✅ ADD
-    revenuePercentage: '+0%' // ✅ ADD
+    revenueChange: 0,
+    revenuePercentage: '+0%'
   });
-  
+
   const [recentOrders, setRecentOrders] = useState([]);
   const [topItems, setTopItems] = useState([]);
-  
+
   const [staffData, setStaffData] = useState({
     waiters: [],
     chefs: []
@@ -84,6 +81,82 @@ const Dashboard = () => {
     return () => clearInterval(timer);
   }, []);
 
+  // Define loadDashboardData before useEffect to avoid ReferenceError
+  const loadDashboardData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [
+        ordersData,
+        orderStats,
+        todaysOrdersData,
+        totalRevenue,
+        todayRevenue,
+        usersData,
+        lastMonthRevenue
+      ] = await Promise.all([
+        getOrders(),
+        getOrderStatistics(),
+        getTodaysOrders(),
+        getTotalRevenue(),
+        getTodaysRevenue(),
+        getUsers(),
+        getDishes(),
+        getLastMonthRevenue()
+      ]);
+
+      let changePercentage = '+0%';
+      let isTrendingUp = true;
+
+      if (lastMonthRevenue > 0) {
+        const change = ((totalRevenue - lastMonthRevenue) / lastMonthRevenue) * 100;
+        changePercentage = `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
+        isTrendingUp = change >= 0;
+      } else if (totalRevenue > 0) {
+        changePercentage = '+100%';
+        isTrendingUp = true;
+      }
+
+      const calculatedStats = {
+        totalRevenue: totalRevenue || 0,
+        todayRevenue: todayRevenue || 0,
+        totalOrders: ordersData.length,
+        todayOrders: todaysOrdersData.length,
+        uniqueCustomers: usersData.length,
+        activeNow: todaysOrdersData.filter(o => o.status === 'in-kitchen').length,
+        pendingActions: orderStats.pending || 0,
+        revenueChange: isTrendingUp,
+        revenuePercentage: changePercentage
+      };
+
+      setStats(calculatedStats);
+      await processRecentOrders(ordersData.slice(0, 5));
+      await calculateTopItems();
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      toast.error('❌ Error loading dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Define loadStaffData before useEffect as well
+  const loadStaffData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const waiters = await staffManagement.getAllWaiters();
+      const chefs = await staffManagement.getAllChefs();
+      setStaffData({
+        waiters: waiters || [],
+        chefs: chefs || []
+      });
+    } catch (error) {
+      console.error('Error loading staff data:', error);
+      toast.error('❌ Error loading staff data');
+    } finally {
+      setLoading(false);
+    }
+  }, [staffManagement]);
+
   // Load data based on active tab
   useEffect(() => {
     if (activeTab === 'overview') {
@@ -91,90 +164,7 @@ const Dashboard = () => {
     } else if (activeTab === 'staff' && isOwner) {
       loadStaffData();
     }
-  }, [activeTab]);
-
-  const loadDashboardData = useCallback(async () => {
-  try {
-    setLoading(true);
-    
-    const [
-      ordersData,
-      orderStats,
-      todaysOrdersData,
-      totalRevenue,
-      todayRevenue,
-      usersData,
-      lastMonthRevenue
-    ] = await Promise.all([
-      getOrders(),
-      getOrderStatistics(),
-      getTodaysOrders(),
-      getTotalRevenue(),
-      getTodaysRevenue(),
-      getUsers(),
-      getDishes(),
-      getLastMonthRevenue()
-    ]);
-
-    // Calculate percentage change
-    let changePercentage = '+0%';
-    let isTrendingUp = true;
-    
-    if (lastMonthRevenue > 0) {
-      const change = ((totalRevenue - lastMonthRevenue) / lastMonthRevenue) * 100;
-      changePercentage = `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
-      isTrendingUp = change >= 0;
-    } else if (totalRevenue > 0) {
-      changePercentage = '+100%';
-      isTrendingUp = true;
-    }
-
-    const calculatedStats = {
-      totalRevenue: totalRevenue || 0,
-      todayRevenue: todayRevenue || 0,
-      totalOrders: ordersData.length,
-      todayOrders: todaysOrdersData.length,
-      uniqueCustomers: usersData.length,
-      activeNow: todaysOrdersData.filter(o => o.status === 'in-kitchen').length,
-      pendingActions: orderStats.pending || 0,
-      revenueChange: isTrendingUp,
-      revenuePercentage: changePercentage
-    };
-
-    setStats(calculatedStats);
-    await processRecentOrders(ordersData.slice(0, 5));
-    
-    // ✅ THIS IS THE MOST IMPORTANT LINE - ADD IT!
-    await calculateTopItems();  // 👈👈👈 YEH LINE ADD KARO!
-
-  } catch (error) {
-    console.error('Error loading dashboard data:', error);
-    toast.error('❌ Error loading dashboard data');
-  } finally {
-    setLoading(false);
-  }
-}, []);
-
-
-  const loadStaffData = useCallback(async () => {
-    try {
-      setLoading(true);
-      
-      const waiters = await staffManagement.getAllWaiters();
-      const chefs = await staffManagement.getAllChefs();
-      
-      setStaffData({
-        waiters: waiters || [],
-        chefs: chefs || []
-      });
-      
-    } catch (error) {
-      console.error('Error loading staff data:', error);
-      toast.error('❌ Error loading staff data');
-    } finally {
-      setLoading(false);
-    }
-}, []);
+  }, [activeTab, isOwner, loadDashboardData, loadStaffData]);
 
   const processRecentOrders = async (orders) => {
     try {
@@ -182,16 +172,14 @@ const Dashboard = () => {
         orders.map(async (order) => {
           try {
             const details = await getOrderDetailsByOrderId(order.order_id);
-            
-            const total = details.reduce((sum, item) => 
+            const total = details.reduce((sum, item) =>
               sum + (parseFloat(item.price) * parseInt(item.quantity)), 0
             );
-
             const now = new Date();
             const created = new Date(order.order_date);
             const diffMinutes = Math.floor((now - created) / 60000);
             let timeAgo = 'Just now';
-            
+
             if (diffMinutes >= 1 && diffMinutes < 60) {
               timeAgo = `${diffMinutes} mins ago`;
             } else if (diffMinutes >= 60) {
@@ -199,7 +187,6 @@ const Dashboard = () => {
               timeAgo = `${hours} hour${hours > 1 ? 's' : ''} ago`;
             }
 
-            // ✅ CORRECT STATUS MAPPING
             let statusText = 'In Kitchen';
             if (order.status === 'completed') statusText = 'Completed';
             else if (order.status === 'in-kitchen') statusText = 'In Kitchen';
@@ -221,81 +208,72 @@ const Dashboard = () => {
           }
         })
       );
-
       setRecentOrders(processedOrders.filter(o => o !== null));
     } catch (error) {
       console.error('Error processing recent orders:', error);
     }
   };
 
-// ✅ PASTE THIS EXACT CODE
-const calculateTopItems = async () => {
-  try {
-    console.log('📊 STARTING TO CALCULATE TOP ITEMS...');
-    
-    // ✅ USE Order_Details TABLE (not OrderItem)
-    const { data: orderDetails, error } = await supabase
-      .from('Order_Details')  // 👈 CHANGED TABLE NAME!
-      .select(`
-        dish_id,
-        quantity,
-        price,
-        Dish (
+  const calculateTopItems = async () => {
+    try {
+      console.log('📊 STARTING TO CALCULATE TOP ITEMS...');
+      const { data: orderDetails, error } = await supabase
+        .from('Order_Details')
+        .select(`
           dish_id,
-          dish_name
-        )
-      `);
+          quantity,
+          price,
+          Dish (
+            dish_id,
+            dish_name
+          )
+        `);
 
-    if (error) {
-      console.error('❌ Supabase Error:', error);
-      setTopItems([]);
-      return;
-    }
-
-    if (!orderDetails || orderDetails.length === 0) {
-      console.log('⚠️ NO ORDER DETAILS FOUND');
-      setTopItems([]);
-      return;
-    }
-
-    const dishStats = {};
-    
-    orderDetails.forEach(item => {
-      const dishId = item.dish_id;
-      const dishName = item.Dish?.dish_name || `Dish #${dishId}`;  // 👈 dish_name not name
-      
-      if (!dishStats[dishId]) {
-        dishStats[dishId] = {
-          id: dishId,
-          name: dishName,
-          orders: 0,
-          revenue: 0
-        };
+      if (error) {
+        console.error('❌ Supabase Error:', error);
+        setTopItems([]);
+        return;
       }
-      
-      dishStats[dishId].orders += parseInt(item.quantity) || 1;
-      dishStats[dishId].revenue += (parseFloat(item.price) || 0) * (parseInt(item.quantity) || 1);
-    });
 
-    const topItemsArray = Object.values(dishStats)
-      .sort((a, b) => b.orders - a.orders)
-      .slice(0, 4)
-      .map(item => ({
-        ...item,
-        revenue: Math.round(item.revenue),
-        trend: 'up'
-      }));
+      if (!orderDetails || orderDetails.length === 0) {
+        console.log('⚠️ NO ORDER DETAILS FOUND');
+        setTopItems([]);
+        return;
+      }
 
-    console.log('✅ TOP ITEMS FINAL:', topItemsArray);
-    setTopItems(topItemsArray);
-    
-  } catch (error) {
-    console.error('❌ CRITICAL ERROR:', error);
-    setTopItems([]);
-  }
-};
+      const dishStats = {};
 
+      orderDetails.forEach(item => {
+        const dishId = item.dish_id;
+        const dishName = item.Dish?.dish_name || `Dish #${dishId}`;
+        if (!dishStats[dishId]) {
+          dishStats[dishId] = {
+            id: dishId,
+            name: dishName,
+            orders: 0,
+            revenue: 0
+          };
+        }
+        dishStats[dishId].orders += parseInt(item.quantity) || 1;
+        dishStats[dishId].revenue += (parseFloat(item.price) || 0) * (parseInt(item.quantity) || 1);
+      });
 
+      const topItemsArray = Object.values(dishStats)
+        .sort((a, b) => b.orders - a.orders)
+        .slice(0, 4)
+        .map(item => ({
+          ...item,
+          revenue: Math.round(item.revenue),
+          trend: 'up'
+        }));
+
+      console.log('✅ TOP ITEMS FINAL:', topItemsArray);
+      setTopItems(topItemsArray);
+    } catch (error) {
+      console.error('❌ CRITICAL ERROR:', error);
+      setTopItems([]);
+    }
+  };
 
   const handleCreateStaff = async (e) => {
     e.preventDefault();
@@ -370,14 +348,37 @@ const calculateTopItems = async () => {
     navigate('/login');
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadDashboardData();
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1000);
+  };
+
+  const getStatusClass = (status) => {
+    switch(status.toLowerCase()) {
+      case 'completed':
+        return 'status-completed';
+      case 'in kitchen':
+        return 'status-in-progress';
+      case 'ready':
+        return 'status-ready';
+      case 'served':
+        return 'status-served';
+      default:
+        return '';
+    }
+  };
+
   // ✅ DYNAMIC STATS DATA
   const statsData = [
     { 
       id: 1, 
       title: 'Total Revenue', 
       value: `₹${Math.round(stats.totalRevenue).toLocaleString()}`, 
-      change: stats.revenuePercentage,              // ✅ DYNAMIC
-      trending: stats.revenueChange ? 'up' : 'down', // ✅ DYNAMIC
+      change: stats.revenuePercentage,
+      trending: stats.revenueChange ? 'up' : 'down',
       icon: DollarSign, 
       bgColor: '#F0FDFA',
       iconColor: '#14B8A6',
@@ -437,29 +438,6 @@ const calculateTopItems = async () => {
       action: () => navigate('/customers')
     }
   ];
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await loadDashboardData();
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
-  };
-
-  const getStatusClass = (status) => {
-    switch(status.toLowerCase()) {
-      case 'completed':
-        return 'status-completed';
-      case 'in kitchen':
-        return 'status-in-progress';
-      case 'ready':
-        return 'status-ready';
-      case 'served':
-        return 'status-served';
-      default:
-        return '';
-    }
-  };
 
   if (!isOwner) {
     return (
