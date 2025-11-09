@@ -1,6 +1,6 @@
 // src/pages/Menu/Menu.jsx - ✅ FINAL VERSION
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Search, Grid, List, Filter, Edit2, Trash2 } from 'lucide-react';
 import './Menu.css';
 
