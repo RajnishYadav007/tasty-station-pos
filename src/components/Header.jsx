@@ -382,261 +382,86 @@ const getTimeAgo = (timestamp) => {
         )}
       </div>
 
-      {/* ✅ NOTIFICATION PANEL */}
-      {showNotifications && (
-        <>
-          <div 
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'rgba(0, 0, 0, 0.3)',
-              zIndex: 999
-            }}
-            onClick={() => setShowNotifications(false)} 
-          />
-          <div style={{
-            position: 'fixed',
-            top: '70px',
-            right: '20px',
-            width: '400px',
-            maxHeight: '600px',
-            background: 'white',
-            borderRadius: '16px',
-            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)',
-            zIndex: 1000,
-            display: 'flex',
-            flexDirection: 'column'
-          }}>
-            {/* Header */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '20px',
-              borderBottom: '1px solid #E5E7EB'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Bell size={20} />
-                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>Notifications</h3>
-                {unreadCount > 0 && (
-                  <span style={{
-                    background: '#EF4444',
-                    color: 'white',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    fontSize: '12px',
-                    fontWeight: 600
-                  }}>
-                    {unreadCount}
-                  </span>
-                )}
-              </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                {filteredNotifications.length > 0 && (
-                  <button 
-                    onClick={handleMarkAllRead}
-                    style={{
-                      padding: '6px 12px',
-                      background: '#F3F4F6',
-                      border: 'none',
-                      borderRadius: '8px',
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                      fontWeight: 500,
-                      transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = '#DBEAFE';
-                      e.currentTarget.style.color = '#2563EB';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = '#F3F4F6';
-                      e.currentTarget.style.color = '#000';
-                    }}
-                  >
-                    Mark all read
-                  </button>
-                )}
-                <button 
-                  onClick={() => setShowNotifications(false)}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: '4px'
-                  }}
-                >
-                  <X size={20} />
-                </button>
-              </div>
-            </div>
+{/* ✅ NOTIFICATION PANEL - RESPONSIVE */}
+{showNotifications && (
+  <>
+    <div 
+      className="notification-overlay"
+      onClick={() => setShowNotifications(false)} 
+    />
+    <div className="notification-panel">
+      {/* Header */}
+      <div className="notification-panel-header">
+        <div className="notification-panel-title">
+          <Bell size={20} />
+          <h3>Notifications</h3>
+          {unreadCount > 0 && (
+            <span className="notification-count-badge">{unreadCount}</span>
+          )}
+        </div>
+        <div className="notification-panel-actions">
+          {filteredNotifications.length > 0 && (
+            <button onClick={handleMarkAllRead} className="notification-mark-btn">
+              Mark all read
+            </button>
+          )}
+          <button onClick={() => setShowNotifications(false)} className="notification-close-btn">
+            <X size={20} />
+          </button>
+        </div>
+      </div>
 
-            {/* Body */}
-            <div style={{
-              flex: 1,
-              overflowY: 'auto',
-              maxHeight: '450px'
-            }}>
-              {filteredNotifications.length === 0 ? (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '60px 20px',
-                  color: '#9CA3AF'
-                }}>
-                  <Bell size={48} style={{ marginBottom: '12px', opacity: 0.4 }} />
-                  <p style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>No notifications</p>
-                  <span style={{ fontSize: '14px' }}>You're all caught up!</span>
-                </div>
-              ) : (
-                filteredNotifications.map(notification => {
-                  const colors = getNotificationColor(notification.type);
-                  return (
-                    <div 
-                      key={notification.id}
-                      onClick={() => markAsRead(notification.id)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        gap: '12px',
-                        padding: '16px 20px',
-                        cursor: 'pointer',
-                        borderBottom: '1px solid #F3F4F6',
-                        background: !notification.read ? '#F0F9FF' : 'white',
-                        transition: 'background 0.2s'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = !notification.read ? '#F0F9FF' : 'white'}
-                    >
-                      {/* Icon */}
-                      <div style={{
-                        width: '40px',
-                        height: '40px',
-                        borderRadius: '10px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        background: colors.bg,
-                        color: colors.color,
-                        flexShrink: 0
-                      }}>
-                        {getIcon(notification.type)}
-                      </div>
-
-                      <div style={{ flex: 1 }}>
-                        <p style={{
-                          fontSize: '14px',
-                          margin: '0 0 4px 0',
-                          fontWeight: 500,
-                          color: '#111827'
-                        }}>
-                          {notification.message}
-                        </p>
-                        <span style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          fontSize: '12px',
-                          color: '#6B7280'
-                        }}>
-                          <Clock size={12} />
-                          {getTimeAgo(notification.created_at)}
-                        </span>
-                      </div>
-
-                      {/* Unread indicator */}
-                      {!notification.read && (
-                        <div style={{
-                          width: '8px',
-                          height: '8px',
-                          background: '#3B82F6',
-                          borderRadius: '50%',
-                          marginTop: '6px',
-                          flexShrink: 0
-                        }} />
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Footer */}
-            {filteredNotifications.length > 0 && (
-              <div style={{
-                padding: '16px 20px',
-                borderTop: '1px solid #E5E7EB',
-                display: 'flex',
-                gap: '10px'
-              }}>
-                <button 
-                  onClick={handleMarkAllRead}
-                  style={{
-                    flex: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    padding: '10px',
-                    background: '#DBEAFE',
-                    color: '#2563EB',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#2563EB';
-                    e.currentTarget.style.color = 'white';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = '#DBEAFE';
-                    e.currentTarget.style.color = '#2563EB';
-                  }}
-                >
-                  <Check size={16} />
-                  Mark All
-                </button>
-
-                <button 
-                  onClick={clearAll}
-                  style={{
-                    flex: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    padding: '10px',
-                    background: '#FEE2E2',
-                    color: '#DC2626',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#DC2626';
-                    e.currentTarget.style.color = 'white';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = '#FEE2E2';
-                    e.currentTarget.style.color = '#DC2626';
-                  }}
-                >
-                  <Trash2 size={16} />
-                  Clear All
-                </button>
-              </div>
-            )}
+      {/* Body */}
+      <div className="notification-panel-body">
+        {filteredNotifications.length === 0 ? (
+          <div className="notification-empty">
+            <Bell size={48} />
+            <p>No notifications</p>
+            <span>You're all caught up!</span>
           </div>
-        </>
+        ) : (
+          filteredNotifications.map(notification => {
+            const colors = getNotificationColor(notification.type);
+            return (
+              <div 
+                key={notification.id}
+                onClick={() => markAsRead(notification.id)}
+                className={`notification-item ${!notification.read ? 'unread' : ''}`}
+              >
+                <div className="notification-item-icon" style={{ background: colors.bg, color: colors.color }}>
+                  {getIcon(notification.type)}
+                </div>
+                <div className="notification-item-content">
+                  <p className="notification-item-message">{notification.message}</p>
+                  <span className="notification-item-time">
+                    <Clock size={12} />
+                    {getTimeAgo(notification.created_at)}
+                  </span>
+                </div>
+                {!notification.read && <div className="notification-unread-dot" />}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Footer */}
+      {filteredNotifications.length > 0 && (
+        <div className="notification-panel-footer">
+          <button onClick={handleMarkAllRead} className="notification-footer-btn mark-all">
+            <Check size={16} />
+            Mark All
+          </button>
+          <button onClick={clearAll} className="notification-footer-btn clear-all">
+            <Trash2 size={16} />
+            Clear All
+          </button>
+        </div>
       )}
+    </div>
+  </>
+)}
+
     </>
   );
 };

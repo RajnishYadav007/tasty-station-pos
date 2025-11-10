@@ -1,5 +1,5 @@
-// src/pages/Dashboard/Dashboard.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+// src/pages/Dashboard/Dashboard.jsx - ✅ FULLY OPTIMIZED
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
@@ -73,6 +73,11 @@ const Dashboard = () => {
   const [staffType, setStaffType] = useState('waiter');
   const [staffLoading, setStaffLoading] = useState(false);
 
+  // ✅ ADD: Refs to track if data has been loaded
+  const overviewDataLoaded = useRef(false);
+  const staffDataLoaded = useRef(false);
+  const isLoadingRef = useRef(false);
+
   // Update time every second
   useEffect(() => {
     const timer = setInterval(() => {
@@ -81,10 +86,20 @@ const Dashboard = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Define loadDashboardData before useEffect to avoid ReferenceError
-  const loadDashboardData = useCallback(async () => {
+  // ✅ OPTIMIZED: Load dashboard data with caching
+  const loadDashboardData = async () => {
+    // Prevent duplicate calls
+    if (isLoadingRef.current) {
+      console.log('⏳ Already loading, skipping...');
+      return;
+    }
+
+    isLoadingRef.current = true;
+    setLoading(true);
+
     try {
-      setLoading(true);
+      console.log('📊 Loading dashboard data...');
+      
       const [
         ordersData,
         orderStats,
@@ -131,40 +146,66 @@ const Dashboard = () => {
       setStats(calculatedStats);
       await processRecentOrders(ordersData.slice(0, 5));
       await calculateTopItems();
+      
+      // ✅ Mark as loaded
+      overviewDataLoaded.current = true;
+      console.log('✅ Dashboard data loaded successfully');
+      
     } catch (error) {
-      console.error('Error loading dashboard data:', error);
+      console.error('❌ Error loading dashboard data:', error);
       toast.error('❌ Error loading dashboard data');
     } finally {
       setLoading(false);
+      isLoadingRef.current = false;
     }
-  }, []);
+  };
 
-  // Define loadStaffData before useEffect as well
-  const loadStaffData = useCallback(async () => {
+  // ✅ OPTIMIZED: Load staff data with caching
+  const loadStaffData = async () => {
+    if (!isOwner) return;
+    
+    // Prevent duplicate calls
+    if (isLoadingRef.current) {
+      console.log('⏳ Already loading, skipping...');
+      return;
+    }
+
+    isLoadingRef.current = true;
+    setLoading(true);
+
     try {
-      setLoading(true);
+      console.log('👥 Loading staff data...');
+      
       const waiters = await staffManagement.getAllWaiters();
       const chefs = await staffManagement.getAllChefs();
+      
       setStaffData({
         waiters: waiters || [],
         chefs: chefs || []
       });
+      
+      // ✅ Mark as loaded
+      staffDataLoaded.current = true;
+      console.log('✅ Staff data loaded successfully');
+      
     } catch (error) {
-      console.error('Error loading staff data:', error);
+      console.error('❌ Error loading staff data:', error);
       toast.error('❌ Error loading staff data');
     } finally {
       setLoading(false);
+      isLoadingRef.current = false;
     }
-  }, [staffManagement]);
+  };
 
-  // Load data based on active tab
+  // ✅ OPTIMIZED: Load data only ONCE per tab
   useEffect(() => {
-    if (activeTab === 'overview') {
+    if (activeTab === 'overview' && !overviewDataLoaded.current) {
       loadDashboardData();
-    } else if (activeTab === 'staff' && isOwner) {
+    } else if (activeTab === 'staff' && isOwner && !staffDataLoaded.current) {
       loadStaffData();
     }
-  }, [activeTab, isOwner, loadDashboardData, loadStaffData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, isOwner]);
 
   const processRecentOrders = async (orders) => {
     try {
@@ -216,7 +257,6 @@ const Dashboard = () => {
 
   const calculateTopItems = async () => {
     try {
-      console.log('📊 STARTING TO CALCULATE TOP ITEMS...');
       const { data: orderDetails, error } = await supabase
         .from('Order_Details')
         .select(`
@@ -236,7 +276,6 @@ const Dashboard = () => {
       }
 
       if (!orderDetails || orderDetails.length === 0) {
-        console.log('⚠️ NO ORDER DETAILS FOUND');
         setTopItems([]);
         return;
       }
@@ -267,10 +306,9 @@ const Dashboard = () => {
           trend: 'up'
         }));
 
-      console.log('✅ TOP ITEMS FINAL:', topItemsArray);
       setTopItems(topItemsArray);
     } catch (error) {
-      console.error('❌ CRITICAL ERROR:', error);
+      console.error('❌ Error calculating top items:', error);
       setTopItems([]);
     }
   };
@@ -297,6 +335,9 @@ const Dashboard = () => {
       if (result.success) {
         toast.success(`✅ ${staffType} created successfully!`);
         setStaffFormData({ name: '', email: '', password: '', phone: '', specialization: '' });
+        
+        // ✅ Reload staff data after creating new staff
+        staffDataLoaded.current = false;
         loadStaffData();
       } else {
         toast.error(result.message);
@@ -315,6 +356,9 @@ const Dashboard = () => {
         const result = await staffManagement.deleteWaiter(waiterId);
         if (result.success) {
           toast.success('✅ Waiter deleted successfully!');
+          
+          // ✅ Reload staff data after deletion
+          staffDataLoaded.current = false;
           loadStaffData();
         } else {
           toast.error(result.message);
@@ -332,6 +376,9 @@ const Dashboard = () => {
         const result = await staffManagement.deleteChef(chefId);
         if (result.success) {
           toast.success('✅ Chef deleted successfully!');
+          
+          // ✅ Reload staff data after deletion
+          staffDataLoaded.current = false;
           loadStaffData();
         } else {
           toast.error(result.message);
@@ -348,12 +395,23 @@ const Dashboard = () => {
     navigate('/login');
   };
 
+  // ✅ REFRESH: Manually reload data
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadDashboardData();
+    
+    // Reset cache flags
+    if (activeTab === 'overview') {
+      overviewDataLoaded.current = false;
+      await loadDashboardData();
+    } else if (activeTab === 'staff') {
+      staffDataLoaded.current = false;
+      await loadStaffData();
+    }
+    
     setTimeout(() => {
       setRefreshing(false);
-    }, 1000);
+      toast.success('✅ Data refreshed!');
+    }, 500);
   };
 
   const getStatusClass = (status) => {
@@ -453,6 +511,7 @@ const Dashboard = () => {
     return (
       <div className="dashboard-container">
         <div style={{ textAlign: 'center', padding: '60px', color: '#666' }}>
+          <div className="spinner"></div>
           Loading dashboard...
         </div>
       </div>
@@ -481,6 +540,7 @@ const Dashboard = () => {
           <button 
             className={`refresh-btn ${refreshing ? 'refreshing' : ''}`}
             onClick={handleRefresh}
+            disabled={refreshing}
           >
             <RefreshCw size={18} />
             Refresh

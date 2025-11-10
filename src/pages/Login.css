@@ -215,6 +215,8 @@
   margin-bottom: 8px;
 }
 
+
+
 .input-wrapper {
   position: relative;
   display: flex;
@@ -242,22 +244,55 @@
   box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
 }
 
+/* ===== PASSWORD FIELD WITH EYE ICON (FACEBOOK STYLE) ===== */
+.password-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.password-wrapper input {
+  width: 100%;
+  padding-right: 50px !important; /* Space for eye icon */
+}
+
 .toggle-password {
   position: absolute;
-  right: 16px;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
   background: transparent;
   border: none;
-  color: #9CA3AF;
   cursor: pointer;
-  padding: 4px;
+  color: #9CA3AF;
+  padding: 8px;
   display: flex;
   align-items: center;
-  transition: color 0.2s;
+  justify-content: center;
+  transition: all 0.2s ease;
+  border-radius: 8px;
+  outline: none;
+  z-index: 10;
 }
 
 .toggle-password:hover {
+  background: #F3F4F6;
   color: #14B8A6;
 }
+
+.toggle-password:active {
+  transform: translateY(-50%) scale(0.92);
+}
+
+.toggle-password svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Focus state */
+.password-wrapper:focus-within .toggle-password {
+  color: #14B8A6;
+}
+
 
 /* Forgot Password (NEW) */
 .forgot-password {
@@ -676,3 +711,106 @@ input[type="password"]::-ms-clear {
   }
 }
 
+/* ✅ Quick Login Section */
+.quick-login-section {
+  margin: 24px 0;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 20px 0;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.divider span {
+  padding: 0 16px;
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Role Buttons Grid */
+.role-buttons-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.role-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: #f9fafb;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.role-icon {
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: white;
+}
+
+/* Role specific colors */
+.role-owner {
+  border-color: #10b981;
+}
+
+.role-owner:hover {
+  background: #d1fae5;
+  border-color: #059669;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+.role-waiter {
+  border-color: #3b82f6;
+}
+
+.role-waiter:hover {
+  background: #dbeafe;
+  border-color: #2563eb;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+}
+
+.role-chef {
+  border-color: #f59e0b;
+}
+
+.role-chef:hover {
+  background: #fef3c7;
+  border-color: #d97706;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+}
+
+.role-customer {
+  border-color: #ec4899;
+}
+
+.role-customer:hover {
+  background: #fce7f3;
+  border-color: #db2777;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(236, 72, 153, 0.2);
+}

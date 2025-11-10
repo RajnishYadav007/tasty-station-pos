@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+// src/context/MenuContext.jsx - ✅ FULLY OPTIMIZED WITH CACHING
+
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 
 // Import APIs
 import { getDishes } from '../api/dishApi';
@@ -21,11 +23,25 @@ export const MenuProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Wrap loadMenuData in useCallback to stabilize reference
-  const loadMenuData = useCallback(async () => {
+  // ✅ ADD: Refs to prevent infinite loops
+  const isLoadingRef = useRef(false);
+  const dataLoadedRef = useRef(false);
+  const autoRefreshInterval = useRef(null);
+
+  // ✅ OPTIMIZED: Load menu data with caching
+  const loadMenuData = async () => {
+    // Prevent duplicate calls
+    if (isLoadingRef.current) {
+      console.log('⏳ Already loading menu, skipping...');
+      return;
+    }
+
+    isLoadingRef.current = true;
+    setLoading(true);
+    setError(null);
+
     try {
-      setLoading(true);
-      setError(null);
+      console.log('📋 Loading menu from database...');
 
       // Fetch dishes and categories in parallel
       const [dishesData, categoriesData] = await Promise.all([
@@ -55,6 +71,10 @@ export const MenuProvider = ({ children }) => {
       localStorage.setItem('restaurantCategories', JSON.stringify(allCategories));
 
       console.log('✅ Menu loaded from database:', dishesData.length, 'dishes');
+      
+      // Mark as loaded
+      dataLoadedRef.current = true;
+
     } catch (err) {
       console.error('❌ Error loading menu from database:', err);
       setError(err.message);
@@ -75,16 +95,59 @@ export const MenuProvider = ({ children }) => {
       }
     } finally {
       setLoading(false);
+      isLoadingRef.current = false;
     }
-  }, []); // Empty dependency array to avoid infinite loop
+  };
 
-  // useEffect to load menu initially and every 30 seconds
+  // ✅ OPTIMIZED: Load ONCE on mount
   useEffect(() => {
-    loadMenuData();
+    if (!dataLoadedRef.current) {
+      loadMenuData();
+    }
 
-    const interval = setInterval(loadMenuData, 30000);
-    return () => clearInterval(interval);
-  }, [loadMenuData]);
+    // Cleanup on unmount
+    return () => {
+      if (autoRefreshInterval.current) {
+        clearInterval(autoRefreshInterval.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ✅ NEW: Enable auto-refresh (optional - use in admin panel)
+  const enableAutoRefresh = () => {
+    // Clear any existing interval
+    if (autoRefreshInterval.current) {
+      clearInterval(autoRefreshInterval.current);
+    }
+
+    // Auto-refresh every 30 seconds
+    autoRefreshInterval.current = setInterval(() => {
+      if (!isLoadingRef.current) {
+        console.log('🔄 Auto-refreshing menu...');
+        dataLoadedRef.current = false; // Reset to allow refresh
+        loadMenuData();
+      }
+    }, 30000); // 30 seconds
+
+    console.log('✅ Auto-refresh enabled (30s interval)');
+  };
+
+  // ✅ NEW: Disable auto-refresh
+  const disableAutoRefresh = () => {
+    if (autoRefreshInterval.current) {
+      clearInterval(autoRefreshInterval.current);
+      autoRefreshInterval.current = null;
+      console.log('⏸️ Auto-refresh disabled');
+    }
+  };
+
+  // ✅ Manual refresh to reload menu data
+  const refreshMenu = async () => {
+    console.log('🔄 Manual refresh triggered');
+    dataLoadedRef.current = false; // Reset cache
+    await loadMenuData();
+  };
 
   // Get category icon by name
   const getCategoryIcon = (categoryName) => {
@@ -148,11 +211,6 @@ export const MenuProvider = ({ children }) => {
     return dishes.filter(dish => dish.availability_status === true);
   };
 
-  // Manual refresh to reload menu data
-  const refreshMenu = async () => {
-    await loadMenuData();
-  };
-
   // Value provided to context consumers
   const value = {
     dishes,
@@ -165,7 +223,9 @@ export const MenuProvider = ({ children }) => {
     searchDishes,
     getDishesByPriceRange,
     getAvailableDishes,
-    refreshMenu
+    refreshMenu,           // ✅ Manual refresh
+    enableAutoRefresh,     // ✅ Enable auto-refresh
+    disableAutoRefresh     // ✅ Disable auto-refresh
   };
 
   return (

@@ -1,4 +1,4 @@
-// src/context/OrderContext.jsx - ✅ WITH DISH NAMES
+// src/context/OrderContext.jsx - ✅ FULLY OPTIMIZED WITH CACHING
 
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { getAllOrderDetailsWithOrders } from '../api/orderDetailsApi';
@@ -17,27 +17,41 @@ export const useOrders = () => {
 export const OrderProvider = ({ children }) => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [orderDetails, setOrderDetails] = useState({});  // ✅ CHANGE #1
+  const [orderDetails, setOrderDetails] = useState({});
+  
+  // ✅ ADD: Refs to prevent infinite loops
+  const isLoadingRef = useRef(false);
+  const dataLoadedRef = useRef(false);
   const isUpdatingRef = useRef(false);
+  const autoRefreshInterval = useRef(null);
 
-  // ✅ Load from Supabase on mount
+  // ✅ OPTIMIZED: Load from Supabase ONCE on mount
   useEffect(() => {
-    loadOrdersFromSupabase();
-    
-    // Auto-refresh every 5 seconds ONLY if not updating
-    const interval = setInterval(() => {
-      if (!isUpdatingRef.current) {
-        loadOrdersFromSupabase();
-      }
-    }, 5000);
+    if (!dataLoadedRef.current) {
+      loadOrdersFromSupabase();
+    }
 
-    return () => clearInterval(interval);
+    // Cleanup on unmount
+    return () => {
+      if (autoRefreshInterval.current) {
+        clearInterval(autoRefreshInterval.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ✅ Load from Supabase
+  // ✅ OPTIMIZED: Load from Supabase with caching
   const loadOrdersFromSupabase = async () => {
+    // Prevent duplicate calls
+    if (isLoadingRef.current) {
+      console.log('⏳ Already loading orders, skipping...');
+      return;
+    }
+
+    isLoadingRef.current = true;
+    setLoading(true);
+
     try {
-      setLoading(true);
       console.log('🔄 Loading from Supabase...');
       
       const data = await getAllOrderDetailsWithOrders();
@@ -48,13 +62,13 @@ export const OrderProvider = ({ children }) => {
       setOrders(data);
       console.log('✅ Loaded:', data.length, 'orders');
 
-      // ✅ CHANGE #2 - Process order details with dish names
+      // Process order details with dish names
       const details = {};
       data.forEach(order => {
         if (order.items && order.items.length > 0) {
           details[order.id] = order.items.map(item => ({
             dish_id: item.dish_id,
-            dish_name: item.dish_name || 'Unknown',  // ✅ GET DISH NAME
+            dish_name: item.dish_name || 'Unknown',
             price: item.price,
             quantity: item.quantity,
             status: item.status,
@@ -62,9 +76,13 @@ export const OrderProvider = ({ children }) => {
           }));
         }
       });
-      setOrderDetails(details);  // ✅ SAVE TO STATE
+      
+      setOrderDetails(details);
       localStorage.setItem('orderDetails', JSON.stringify(details));
       console.log('✅ Order details loaded with dish names');
+
+      // Mark as loaded
+      dataLoadedRef.current = true;
 
     } catch (error) {
       console.error('❌ Error loading from Supabase:', error);
@@ -88,7 +106,43 @@ export const OrderProvider = ({ children }) => {
       }
     } finally {
       setLoading(false);
+      isLoadingRef.current = false;
     }
+  };
+
+  // ✅ NEW: Enable auto-refresh (call this explicitly when needed)
+  const enableAutoRefresh = () => {
+    // Clear any existing interval
+    if (autoRefreshInterval.current) {
+      clearInterval(autoRefreshInterval.current);
+    }
+
+    // Auto-refresh every 10 seconds (not 5, to reduce load)
+    autoRefreshInterval.current = setInterval(() => {
+      if (!isUpdatingRef.current && !isLoadingRef.current) {
+        console.log('🔄 Auto-refreshing orders...');
+        dataLoadedRef.current = false; // Reset to allow refresh
+        loadOrdersFromSupabase();
+      }
+    }, 10000); // 10 seconds
+
+    console.log('✅ Auto-refresh enabled (10s interval)');
+  };
+
+  // ✅ NEW: Disable auto-refresh
+  const disableAutoRefresh = () => {
+    if (autoRefreshInterval.current) {
+      clearInterval(autoRefreshInterval.current);
+      autoRefreshInterval.current = null;
+      console.log('⏸️ Auto-refresh disabled');
+    }
+  };
+
+  // ✅ Manual refresh function
+  const refreshOrders = async () => {
+    console.log('🔄 Manual refresh triggered');
+    dataLoadedRef.current = false; // Reset cache
+    await loadOrdersFromSupabase();
   };
 
   // ✅ Update item status - WITH SUPABASE UPDATE
@@ -96,7 +150,7 @@ export const OrderProvider = ({ children }) => {
     console.log('🔥 Updating:', { orderId, itemIndex, newStatus });
 
     try {
-      // ✅ STOP AUTO-REFRESH
+      // ✅ STOP AUTO-REFRESH during update
       isUpdatingRef.current = true;
 
       // Find the order detail ID from current state
@@ -148,10 +202,12 @@ export const OrderProvider = ({ children }) => {
       localStorage.setItem('restaurantOrders', JSON.stringify(updated));
       console.log('💾 Saved to localStorage');
 
-      // ✅ Wait 2 seconds then allow refresh again
-      setTimeout(() => {
+      // ✅ Wait 2 seconds then reload data and re-enable refresh
+      setTimeout(async () => {
+        dataLoadedRef.current = false;
+        await loadOrdersFromSupabase();
         isUpdatingRef.current = false;
-        console.log('✅ Update complete, refresh enabled');
+        console.log('✅ Update complete, data refreshed');
       }, 2000);
 
     } catch (error) {
@@ -176,11 +232,13 @@ export const OrderProvider = ({ children }) => {
   const value = {
     orders,
     loading,
-    orderDetails,  // ✅ CHANGE #3 - ADD THIS
-    setOrderDetails,  // ✅ CHANGE #3 - ADD THIS
+    orderDetails,
+    setOrderDetails,
     updateItemStatus,
     calculateElapsedTime,
-    refreshOrders: loadOrdersFromSupabase
+    refreshOrders,           // ✅ Manual refresh
+    enableAutoRefresh,       // ✅ Enable auto-refresh
+    disableAutoRefresh       // ✅ Disable auto-refresh
   };
 
   return (
